@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberPollo - Leaderboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .leaderboard-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+        }
+
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .leaderboard-table th,
+        .leaderboard-table td {
+            text-align: left;
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .leaderboard-table th {
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+
+        .rank-cell {
+            font-weight: 900;
+            color: #ccc;
+            width: 60px;
+        }
+
+        .rank-1 {
+            color: #ffd700;
+            text-shadow: 0 0 10px #ffd700;
+            font-size: 1.2em;
+        }
+
+        .rank-2 {
+            color: #c0c0c0;
+            text-shadow: 0 0 10px #c0c0c0;
+            font-size: 1.1em;
+        }
+
+        .rank-3 {
+            color: #cd7f32;
+            text-shadow: 0 0 10px #cd7f32;
+            font-size: 1.05em;
+        }
+
+        .user-highlight {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid var(--primary);
+        }
+
+        .credits-val {
+            font-family: monospace;
+            color: var(--success);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-background"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="logo" onclick="window.location.href='index.html'" style="cursor: pointer;">
+                <span class="icon">🐔</span>
+                <h1>CyberPollo <span class="highlight">10K</span></h1>
+            </div>
+            <div class="user-stats">
+                <button class="nav-btn" id="lang-toggle" onclick="toggleLanguage()"
+                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(255,255,255,0.1);">
+                    🇺🇸 EN
+                </button>
+                <button class="nav-btn" data-i18n="nftMenu" onclick="window.location.href='nft.html'"
+                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: linear-gradient(135deg, rgba(153, 69, 255, 0.3), rgba(20, 241, 149, 0.3)); border: 1px solid rgba(20, 241, 149, 0.5);">
+                    🖼️ NFTs
+                </button>
+                <button class="nav-btn" data-i18n="home" onclick="window.location.href='index.html'"
+                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(0,0,0,0.3);">
+                    🏠 Inicio
+                </button>
+                <button class="nav-btn" onclick="window.location.href='profile.html'"
+                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(255, 100, 200, 0.2); border: 1px solid rgba(255, 100, 200, 0.4);">
+                    👤 Perfil
+                </button>
+            </div>
+        </header>
+
+        <main class="main-layout">
+            <section class="leaderboard-container glass-panel">
+                <div class="panel-header">
+                    <h2 data-i18n="top100">Top 100 Combatientes</h2>
+                </div>
+
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="rank">Rango</th>
+                            <th data-i18n="player">Jugador</th>
+                            <th data-i18n="score">Créditos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <!-- Rows -->
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js?v=board1"></script>
+    <script src="auth_supabase.js?v=board1"></script>
+    <script src="lang.js?v=board1"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Language Init
+            const saved = localStorage.getItem('cyberpollo_lang') || 'es';
+            setLanguage(saved);
+
+            // Render Board
+            await renderLeaderboard();
+        });
+
+        async function renderLeaderboard() {
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 20px;">Cargando/Loading...</td></tr>';
+
+            // Fetch from Supabase
+            const { data: users, error } = await supabase
+                .from('game_users')
+                .select('username, credits')
+                .order('credits', { ascending: false })
+                .limit(100);
+
+            tbody.innerHTML = '';
+
+            if (error) {
+                console.error('Leaderboard error:', error);
+                tbody.innerHTML = `<tr><td colspan="3" class="error-msg">Error loading data</td></tr>`;
+                return;
+            }
+
+            if (!users || users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" data-i18n="noUsers" style="text-align:center; padding: 30px;">No hay usuarios.</td></tr>`;
+                return;
+            }
+
+            const currentUser = auth.getCurrentUser(); // Local cached user
+
+            users.forEach((user, index) => {
+                const rank = index + 1;
+                const tr = document.createElement('tr');
+
+                // Highlight logged in user
+                if (currentUser && user.username === currentUser.username) {
+                    tr.classList.add('user-highlight');
+                }
+
+                let rankClass = 'rank-cell';
+                if (rank === 1) rankClass += ' rank-1';
+                if (rank === 2) rankClass += ' rank-2';
+                if (rank === 3) rankClass += ' rank-3';
+
+                // Medal icons for top 3
+                let rankDisplay = `#${rank}`;
+                if (rank === 1) rankDisplay = '🥇';
+                if (rank === 2) rankDisplay = '🥈';
+                if (rank === 3) rankDisplay = '🥉';
+
+                tr.innerHTML = `
+                     <td class="${rankClass}">${rankDisplay}</td>
+                     <td style="font-weight: 500;">
+                         ${user.username} 
+                         ${currentUser && user.username === currentUser.username ? '<span style="color:var(--primary); font-size:0.8em; margin-left:5px;">(Tú)</span>' : ''}
+                     </td>
+                     <td class="credits-val">${user.credits.toLocaleString()}</td>
+                 `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Global for lang toggle
+        function toggleLanguage() {
+            const current = localStorage.getItem('cyberpollo_lang') || 'es';
+            const newLang = current === 'es' ? 'en' : 'es';
+            setLanguage(newLang);
+        }
+    </script>
+</body>
+
+</html>

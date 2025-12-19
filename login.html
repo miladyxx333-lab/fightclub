@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberPollo - Acceso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 450px;
+            padding: 3rem;
+            text-align: center;
+        }
+
+        .auth-logo {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-title {
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .toggle-text {
+            margin-top: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .toggle-link {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <div class="auth-container">
+        <div class="glass-panel auth-card">
+            <div class="auth-logo">🐔</div>
+            <h2 class="auth-title" id="form-title">Iniciar Sesión</h2>
+
+            <form id="auth-form" class="auth-form">
+                <div class="input-with-icon">
+                    <input type="text" id="username" placeholder="Usuario" required>
+                </div>
+                <div class="input-with-icon">
+                    <input type="password" id="password" placeholder="Contraseña" required>
+                </div>
+
+                <button type="submit" class="action-btn mega-btn" id="submit-btn">ENTRAR</button>
+            </form>
+
+            <p class="status-message" id="error-msg" style="color: var(--danger); margin-top: 1rem;"></p>
+
+            <p class="toggle-text">
+                <span id="toggle-msg">¿No tienes cuenta?</span>
+                <span id="toggle-btn" class="toggle-link">Regístrate aquí</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Config -->
+    <script src="supabaseClient.js"></script>
+    <!-- Auth Logic -->
+    <script src="auth_supabase.js"></script>
+    
+    <script>
+        const form = document.getElementById('auth-form');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const formTitle = document.getElementById('form-title');
+        const submitBtn = document.getElementById('submit-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const toggleMsg = document.getElementById('toggle-msg');
+
+        let isLogin = true;
+
+        toggleBtn.addEventListener('click', () => {
+            isLogin = !isLogin;
+            if (isLogin) {
+                formTitle.textContent = 'Iniciar Sesión';
+                submitBtn.textContent = 'ENTRAR';
+                toggleMsg.textContent = '¿No tienes cuenta?';
+                toggleBtn.textContent = 'Regístrate aquí';
+            } else {
+                formTitle.textContent = 'Crear Cuenta';
+                submitBtn.textContent = 'REGISTRARSE';
+                toggleMsg.textContent = '¿Ya tienes cuenta?';
+                toggleBtn.textContent = 'Ingresa aquí';
+            }
+            errorMsg.textContent = '';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            submitBtn.textContent = 'Procesando...';
+            submitBtn.disabled = true;
+
+            try {
+                if (isLogin) {
+                    const result = await auth.login(user, pass);
+                    if (result.success) {
+                        window.location.href = 'index.html';
+                    } else {
+                        errorMsg.textContent = result.message;
+                        submitBtn.textContent = 'ENTRAR';
+                        submitBtn.disabled = false;
+                    }
+                } else {
+                    const result = await auth.register(user, pass);
+                    if (result.success) {
+                        // Auto login after register
+                        const loginRes = await auth.login(user, pass);
+                        if (loginRes.success) {
+                            window.location.href = 'store.html';
+                        } else {
+                            window.location.href = 'login.html';
+                        }
+                    } else {
+                        errorMsg.textContent = result.message;
+                        submitBtn.textContent = 'REGISTRARSE';
+                        submitBtn.disabled = false;
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = "Error de conexión";
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

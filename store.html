@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberStore - Créditos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .store-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .store-card {
+            text-align: center;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            border: 1px solid var(--glass-border);
+            transition: transform 0.2s;
+            position: relative;
+            overflow: hidden;
+
+            /* Cascade Animation */
+            opacity: 0;
+            animation: cascadeFade 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        .store-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .store-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .store-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+
+        .store-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .store-card.featured {
+            border-color: var(--accent);
+            background: rgba(255, 0, 255, 0.15);
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
+        }
+
+        .coin-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+        }
+
+        .amount {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--warning);
+        }
+
+        .price {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .user-balance {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <nav class="glass-header nav-bar">
+        <div class="logo">
+            <span class="icon">🏦</span>
+            <h1>Banco <span class="highlight">CyberPollo</span></h1>
+        </div>
+        <div class="user-balance">
+            <span>Saldo Actual:</span>
+            <span class="highlight-text" id="current-balance">0</span>
+            <button class="nav-btn" id="lang-toggle" onclick="toggleLanguage()"
+                style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(255,255,255,0.1);">
+                🇺🇸 EN
+            </button>
+            <button class="nav-btn" onclick="window.location.href='index.html'"
+                style="width: auto; padding: 0 15px; border-radius: 8px;">Back ➜</button>
+        </div>
+    </nav>
+
+    <main>
+        <div class="hero-section">
+            <h2>Recargar Créditos</h2>
+            <p>Adquiere chips virtuales para apostar en el torneo.</p>
+        </div>
+
+        <div class="store-grid">
+            <!-- Starter -->
+            <div class="glass-panel store-card">
+                <div class="coin-icon">💰</div>
+                <h3 data-i18n="starterPack">Starter Pack</h3>
+                <div class="amount">1,000</div>
+                <div class="price" data-i18n="free">Gratis (Demo)</div>
+                <div id="countdown-timer"
+                    style="color:   #ff073a; font-weight: bold; margin-bottom: 10px; min-height: 20px;"></div>
+                <button id="btn-starter" class="action-btn" onclick="claimDailyBonus()"
+                    data-i18n="claimBonus">Reclamar</button>
+            </div>
+
+            <!-- Pro -->
+            <div class="glass-panel store-card featured">
+                <div class="coin-icon">💎</div>
+                <h3>Pro Gamer</h3>
+                <div class="amount">10,000</div>
+                <div class="price">$9.99 USD</div>
+                <button class="action-btn mega-btn"
+                    onclick="initiatePayment(10000, 9.99, 'assets/solana_pay_qr.jpg')">Comprar</button>
+            </div>
+
+            <!-- Whale -->
+            <div class="glass-panel store-card">
+                <div class="coin-icon">👑</div>
+                <h3>High Roller</h3>
+                <div class="amount">100,000</div>
+                <div class="price">$49.99 USD</div>
+                <button class="action-btn"
+                    onclick="initiatePayment(100000, 49.99, 'assets/solana_pay_high_roller.jpg')">Comprar</button>
+            </div>
+        </div>
+
+        <!-- Payment Verification Modal -->
+        <div id="payment-modal" class="modal-overlay hidden">
+            <div class="modal-content glass-panel">
+                <h2 data-i18n="paymentTitle">Pasarela de Pago</h2>
+
+                <div id="qr-display" class="hidden" style="margin: 20px 0;">
+                    <img id="qr-image" src="" alt="Scan QR"
+                        style="max-width: 200px; border-radius: 10px; border: 2px solid var(--primary);">
+                    <p data-i18n="scanQr" class="info-text">Escanear...</p>
+                </div>
+                <div id="default-icon" class="coin-icon" style="font-size: 3rem; margin: 10px 0;">💳</div>
+
+                <p data-i18n="paymentDesc" id="desc-text" class="info-text">Se abrirá una nueva pestaña.</p>
+
+                <div id="payment-loading" class="hidden">
+                    <div class="loading-spinner" style="width: 30px; height: 30px; margin: 10px auto;"></div>
+                    <p data-i18n="checkTitle" style="color: var(--warning)">Verificando...</p>
+                </div>
+
+                <div id="payment-actions" class="modal-actions" style="flex-direction: column;">
+                    <button id="btn-open-wallet" class="combat-btn btn-high hidden" onclick="openSolanaWallet()"
+                        data-i18n="openWallet" style="margin-bottom: 10px;">Abrir Billetera</button>
+                    <button id="btn-verify-payment" class="action-btn mega-btn" data-i18n="confirmTx">He completado el
+                        pago</button>
+                    <button onclick="closePaymentModal()" class="nav-btn"
+                        style="background: transparent; margin-top: 10px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- QRCode Lab -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="auth_supabase.js"></script>
+    <script src="lang.js"></script>
+    <script>
+        // Language Init
+        const saved = localStorage.getItem('cyberpollo_lang') || 'es';
+        setLanguage(saved);
+
+        function toggleLanguage() {
+            const current = localStorage.getItem('cyberpollo_lang') || 'es';
+            const newLang = current === 'es' ? 'en' : 'es';
+            setLanguage(newLang);
+            updateTimerDisplay();
+        }
+
+        let user = null;
+
+        // Check Auth Async
+        (async () => {
+            await auth.requireAuth();
+            user = auth.getCurrentUser();
+            if (user) document.getElementById('current-balance').textContent = user.credits;
+            updateTimerDisplay(); // Call initially after user load
+        })();
+
+        // --- Config ---
+        const API_URL = "http://localhost:3000/api";
+        // IMPORTANT: Set your real Solana wallet address here to receive funds!
+        const MERCHANT_WALLET = "e6uU5apmNZrUX4L2fCZ7hupZMwofS3JUNXEHcSxqcBD";
+
+        // --- Daily Bonus Logic ---
+        const BONUS_AMOUNT = 1000;
+        const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+        function updateTimerDisplay() {
+            const lastClaim = localStorage.getItem(`cp_last_claim_${user.username}`);
+            const btn = document.getElementById('btn-starter');
+            const timerEl = document.getElementById('countdown-timer');
+
+            if (!lastClaim) {
+                timerEl.textContent = t('bonusReady');
+                timerEl.style.color = '#39ff14';
+                btn.disabled = false;
+                return;
+            }
+
+            const now = Date.now();
+            const elapsed = now - parseInt(lastClaim);
+
+            if (elapsed >= COOLDOWN_MS) {
+                timerEl.textContent = t('bonusReady');
+                timerEl.style.color = '#39ff14';
+                btn.disabled = false;
+            } else {
+                const remaining = COOLDOWN_MS - elapsed;
+                const hours = Math.floor(remaining / (1000 * 60 * 60));
+                const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+                timerEl.textContent = `${t('nextBonus')} ${hours}h ${minutes}m ${seconds}s`;
+                timerEl.style.color = '#ff073a';
+                btn.disabled = true;
+            }
+        }
+
+        function claimDailyBonus() {
+            const lastClaim = localStorage.getItem(`cp_last_claim_${user.username}`);
+            const now = Date.now();
+            if (lastClaim && (now - parseInt(lastClaim) < COOLDOWN_MS)) return;
+
+            buyCredits(BONUS_AMOUNT, document.getElementById('btn-starter'), true);
+            localStorage.setItem(`cp_last_claim_${user.username}`, now.toString());
+            updateTimerDisplay();
+        }
+
+        // Timer Loop
+        setInterval(updateTimerDisplay, 1000);
+        updateTimerDisplay();
+
+        // --- Solana Pay Logic (Dynamic) ---
+        let currentOrderId = null;
+        let currentCreditsToAward = 0; // Store credits for the current payment
+        let pollInterval = null;
+
+        const paymentModal = document.getElementById('payment-modal');
+        const paymentLoading = document.getElementById('payment-loading');
+        const paymentActions = document.getElementById('payment-actions');
+
+        const qrDisplay = document.getElementById('qr-display');
+        const qrImage = document.getElementById('qr-image'); // This is the <img> tag
+        const defaultIcon = document.getElementById('default-icon');
+        const btnOpenWallet = document.getElementById('btn-open-wallet');
+        const descText = document.getElementById('desc-text');
+        const verifyBtn = document.getElementById('btn-verify-payment');
+
+        async function initiatePayment(credits, usdAmount) {
+            currentCreditsToAward = credits; // Set the credits for this payment
+            // Reset UI
+            paymentModal.classList.remove('hidden');
+            paymentLoading.classList.remove('hidden'); // Loading creating order
+            paymentActions.classList.add('hidden');
+            qrDisplay.classList.add('hidden');
+            defaultIcon.classList.add('hidden'); // Hide default while loading
+
+            // Clear previous QR
+            // Hide the static image tag we used before
+            qrImage.style.display = 'none';
+
+            // Remove old canvas/div if any
+            let codeDiv = document.getElementById('qrcode-container');
+            if (codeDiv) {
+                codeDiv.remove();
+            }
+
+            try {
+                // 1. Create Order on Backend
+                const response = await fetch(`${API_URL}/create-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        usd: usdAmount,
+                        wallet: MERCHANT_WALLET,
+                        label: "CyberPollo Store",
+                        message: `Credits: ${credits}`
+                    })
+                });
+
+                if (!response.ok) throw new Error("Server Error");
+                const { order } = await response.json();
+
+                currentOrderId = order.orderId;
+
+                // 2. Generate QR
+                // Create container for QRCode.js
+                codeDiv = document.createElement('div');
+                codeDiv.id = 'qrcode-container';
+                codeDiv.style.margin = '0 auto';
+                codeDiv.style.display = 'flex';
+                codeDiv.style.justifyContent = 'center';
+                // Insert after qr-image
+                qrImage.parentNode.insertBefore(codeDiv, qrImage.nextSibling);
+
+                new QRCode(codeDiv, {
+                    text: order.link,
+                    width: 200,
+                    height: 200,
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+
+                // 3. UI Updates
+                paymentLoading.classList.add('hidden');
+                paymentActions.classList.remove('hidden');
+                qrDisplay.classList.remove('hidden');
+                descText.textContent = `Scan to pay ~${order.amountSOL} SOL`;
+
+                // Set Wallet Button Link
+                btnOpenWallet.classList.remove('hidden');
+                btnOpenWallet.onclick = () => window.location.href = order.link;
+
+                // 4. Start Polling
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(() => checkStatus(), 3000);
+
+            } catch (err) {
+                console.error(err);
+                alert("Error connecting to payment server. Ensure it is running.");
+                closePaymentModal();
+            }
+        }
+
+        async function checkStatus() {
+            if (!currentOrderId) return;
+
+            try {
+                const res = await fetch(`${API_URL}/check-payment/${currentOrderId}`);
+                const data = await res.json();
+
+                if (data.order && data.order.status === 'paid') {
+                    // Success!
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+
+                    await buyCredits(currentCreditsToAward, null, true); // Add credits
+
+                    alert("Pago Confirmado! Creditos añadidos.");
+                    closePaymentModal();
+                }
+            } catch (e) {
+                console.log("Polling error", e);
+            }
+        }
+
+        // Allow manual check too just in case
+        verifyBtn.addEventListener('click', () => {
+            // For dynamic, this is just a aesthetic button or we can force a check
+            paymentLoading.classList.remove('hidden');
+            checkStatus();
+        });
+
+
+        function closePaymentModal() {
+            paymentModal.classList.add('hidden');
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = null;
+            currentOrderId = null;
+            currentCreditsToAward = 0; // Reset
+
+            // Restore QR display elements
+            qrImage.style.display = 'block'; // Show the original img tag
+            const codeDiv = document.getElementById('qrcode-container');
+            if (codeDiv) {
+                codeDiv.remove(); // Remove the dynamically generated QR
+            }
+        }
+
+        async function buyCredits(amount, btnElement, isBonus = false) {
+            // This is now mainly for the internal logic or bonus
+            if (btnElement) {
+                const btn = btnElement;
+                if (btn.disabled && !isBonus) return;
+                btn.textContent = '...';
+                btn.disabled = true;
+            }
+
+            // Execute Add
+            await auth.addCredits(amount);
+            document.getElementById('current-balance').textContent = auth.getCurrentUser().credits;
+
+            if (btnElement) {
+                setTimeout(() => {
+                    const btn = btnElement;
+                    btn.textContent = 'OK!';
+                    btn.style.background = 'var(--success)';
+                    // For bonus, timer takes over.
+                    if (isBonus && btn.id === 'btn-starter') {
+                        updateTimerDisplay();
+                        btn.style.background = '';
+                    }
+                }, 500);
+            }
+        }
+    </script>
+</body>
+
+</html>

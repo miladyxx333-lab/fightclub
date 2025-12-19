@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil de Usuario - CyberPollo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=cyber3">
+    <style>
+        .profile-container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .profile-header-bg {
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(135deg, var(--primary-dark), var(--accent-dark));
+            position: relative;
+            border-bottom: 1px solid var(--primary);
+        }
+
+        .profile-avatar-wrapper {
+            margin-top: -75px;
+            width: 150px;
+            height: 150px;
+            background: #111;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 4px solid var(--primary);
+            box-shadow: 0 0 30px var(--primary);
+            z-index: 2;
+        }
+
+        .profile-egg-icon {
+            font-size: 80px;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .profile-content {
+            padding: 30px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .profile-username {
+            font-size: 2rem;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            text-shadow: 0 0 15px var(--primary);
+        }
+
+        .profile-id {
+            font-family: monospace;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+
+        .stat-box:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-background"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="logo" onclick="window.location.href='index.html'" style="cursor: pointer;">
+                <span class="icon">🐔</span>
+                <h1>CyberPollo <span class="highlight">Profile</span></h1>
+            </div>
+            <div class="user-stats">
+                <button class="nav-btn" data-i18n="home" onclick="window.location.href='index.html'"
+                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(0,0,0,0.3);">
+                    🏠 Inicio
+                </button>
+                <button class="nav-btn" data-i18n="logout" id="logout-btn"
+                    style="width: auto; padding: 5px 10px; border-radius: 8px; margin-left: 10px; background: var(--danger);">
+                    ⏻ Logout
+                </button>
+            </div>
+        </header>
+
+        <main class="main-layout" style="display: block;">
+            <div class="profile-container glass-panel">
+                <div class="profile-header-bg"></div>
+
+                <div class="profile-avatar-wrapper">
+                    <span class="profile-egg-icon">🥚</span>
+                </div>
+
+                <div class="profile-content">
+                    <h2 class="profile-username" id="p-username">Loading...</h2>
+                    <div class="profile-id" id="p-id">ID: --</div>
+
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="stat-value highlight-text" id="p-credits">--</span>
+                            <span class="stat-label">Créditos Totales</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-value" id="p-joined">--</span>
+                            <span class="stat-label">Miembro Desde</span>
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button class="combat-btn btn-high" onclick="window.location.href='index.html'">
+                            ⚔️ Ir al Combate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js?v=prof1"></script>
+    <script src="auth_supabase.js?v=prof1"></script>
+    <script src="lang.js?v=prof1"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await auth.requireAuth();
+
+            const user = auth.getCurrentUser();
+            if (!user) return; // Should redirect in requireAuth
+
+            // Fill basic info from local session first
+            document.getElementById('p-username').textContent = user.username;
+            document.getElementById('p-credits').textContent = user.credits.toLocaleString();
+
+            // Fetch detailed info from DB (creation date, etc)
+            const { data, error } = await supabase
+                .from('game_users')
+                .select('*')
+                .eq('username', user.username)
+                .single();
+
+            if (data) {
+                document.getElementById('p-id').textContent = `ID: ${data.id}`;
+                document.getElementById('p-credits').textContent = data.credits.toLocaleString(); // Sync latest
+
+                const date = new Date(data.created_at);
+                document.getElementById('p-joined').textContent = date.toLocaleDateString();
+            }
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                auth.logout();
+            });
+        });
+    </script>
+</body>
+
+</html>
