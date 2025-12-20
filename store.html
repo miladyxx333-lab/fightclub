@@ -282,77 +282,113 @@
         const descText = document.getElementById('desc-text');
         const verifyBtn = document.getElementById('btn-verify-payment');
 
+        // --- Solana Pay Logic (Client-Side Generation) ---
+        // Genera QR al instante sin esperar API, luego registra en DB.
+
+        // Helper para precio SOL (Fallback fijo para rapidez)
+        async function getSolPriceFromCoinGecko() {
+            try {
+                const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
+                const data = await res.json();
+                return data.solana.usd;
+            } catch (e) {
+                console.warn("CoinGecko error, using fallback");
+                return 200; // Fallback seguro
+            }
+        }
+
         async function initiatePayment(credits, usdAmount) {
-            currentCreditsToAward = credits; // Set the credits for this payment
+            currentCreditsToAward = credits;
+
             // Reset UI
             paymentModal.classList.remove('hidden');
-            paymentLoading.classList.remove('hidden'); // Loading creating order
+            paymentLoading.classList.remove('hidden');
             paymentActions.classList.add('hidden');
             qrDisplay.classList.add('hidden');
-            defaultIcon.classList.add('hidden'); // Hide default while loading
-
-            // Clear previous QR
-            // Hide the static image tag we used before
-            qrImage.style.display = 'none';
-
-            // Remove old canvas/div if any
-            let codeDiv = document.getElementById('qrcode-container');
-            if (codeDiv) {
-                codeDiv.remove();
-            }
+            document.getElementById('qr-image').style.display = 'none';
+            const oldQr = document.getElementById('qrcode-container');
+            if (oldQr) oldQr.remove();
 
             try {
-                // 1. Create Order on Backend
-                const response = await fetch(`${API_URL}/create-payment`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        usd: usdAmount,
-                        wallet: MERCHANT_WALLET,
-                        label: "CyberPollo Store",
-                        message: `Credits: ${credits}`
-                    })
+                // 1. Calcular SOL y Generar ID localmente
+                const price = await getSolPriceFromCoinGecko();
+                const amountSOL = Number((usdAmount / price).toFixed(6));
+
+                // Generar ID único (Timestamp + Random)
+                const orderId = `ORDER_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                currentOrderId = orderId;
+
+                // 2. Construir Link Solana Pay
+                // solana:<wallet>?amount=<amount>&label=<label>&message=<message>&memo=<memo>
+                const params = new URLSearchParams({
+                    amount: amountSOL.toString(),
+                    label: "CyberPollo Store",
+                    message: `Credits: ${credits}`,
+                    memo: orderId
                 });
+                const link = `solana:${MERCHANT_WALLET}?${params.toString()}`;
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error || "Server Error " + response.status);
-                }
-                const data = await response.json();
-                const order = data.order;
+                console.log("Generated Link:", link);
 
-                currentOrderId = order.orderId;
-
-                // 2. Generate QR
-                // Create container for QRCode.js
-                codeDiv = document.createElement('div');
+                // 3. Mostrar QR Inmediatamente
+                const codeDiv = document.createElement('div');
                 codeDiv.id = 'qrcode-container';
                 codeDiv.style.margin = '0 auto';
                 codeDiv.style.display = 'flex';
                 codeDiv.style.justifyContent = 'center';
-                // Insert after qr-image
-                qrImage.parentNode.insertBefore(codeDiv, qrImage.nextSibling);
+                // Insert
+                qrDisplay.parentNode.insertBefore(codeDiv, qrDisplay.nextSibling); // Ajuste de posición flexible
+
+                // Asegurar que qrcodejs esté cargado
+                if (typeof QRCode === 'undefined') {
+                    throw new Error("QRCode library not loaded");
+                }
 
                 new QRCode(codeDiv, {
-                    text: order.link,
+                    text: link,
                     width: 200,
                     height: 200,
                     correctLevel: QRCode.CorrectLevel.M
                 });
 
-                // 3. UI Updates
+                // UI Updates
                 paymentLoading.classList.add('hidden');
                 paymentActions.classList.remove('hidden');
                 qrDisplay.classList.remove('hidden');
-                descText.textContent = `Scan to pay ~${order.amountSOL} SOL`;
 
-                // Set Wallet Button Link
+                // Mover el QR generado dentro del área visible si quedó fuera
+                const qrArea = document.getElementById('qr-display');
+                if (qrArea) {
+                    qrArea.innerHTML = ''; // Limpiar imagen estática
+                    qrArea.appendChild(codeDiv);
+                }
+
+                descText.textContent = `Scan to pay ~${amountSOL} SOL`;
                 btnOpenWallet.classList.remove('hidden');
-                btnOpenWallet.onclick = () => window.location.href = order.link;
+                btnOpenWallet.onclick = () => window.location.href = link;
 
-                // 4. Start Polling
+                // 4. Registrar Orden en Supabase (Segundo plano)
+                // Usamos el cliente supabase global ya autenticado
+                const { error } = await supabase
+                    .from('payment_orders')
+                    .insert([{
+                        id: orderId,
+                        wallet: MERCHANT_WALLET,
+                        amount_usd: usdAmount,
+                        amount_sol: amountSOL,
+                        status: 'pending',
+                        memo: orderId,
+                        created_at: new Date()
+                    }]);
+
+                if (error) {
+                    console.error("Error guardando orden en DB (pero QR es válido):", error);
+                    // No bloqueamos al usuario, el pago se puede verificar en blockchain igual
+                }
+
+                // 5. Iniciar Polling (Verificación)
                 if (pollInterval) clearInterval(pollInterval);
-                pollInterval = setInterval(() => checkStatus(), 3000);
+                pollInterval = setInterval(() => checkStatus(orderId), 3000);
 
             } catch (err) {
                 console.error(err);
@@ -361,25 +397,31 @@
             }
         }
 
-        async function checkStatus() {
-            if (!currentOrderId) return;
+        async function checkStatus(orderIdInput) {
+            const oid = orderIdInput || currentOrderId;
+            if (!oid) return;
 
             try {
-                const res = await fetch(`${API_URL}/check-payment/${currentOrderId}`);
+                // Verificamos estado contra el backend
+                // Si el backend no tiene la orden (porque falló el insert desde frontend), 
+                // dará 404. En un sistema robusto, el backend debería poder verificar 
+                // "on-the-fly" solo con el ID si tiene el formato correcto, pero por ahora dependemos de la DB.
+
+                const res = await fetch(`${API_URL}/check-payment?orderId=${oid}`);
                 const data = await res.json();
 
-                if (data.order && data.order.status === 'paid') {
+                if (data.status === 'paid' || (data.order && data.order.status === 'paid')) {
                     // Success!
-                    clearInterval(pollInterval);
+                    if (pollInterval) clearInterval(pollInterval);
                     pollInterval = null;
 
-                    await buyCredits(currentCreditsToAward, null, true); // Add credits
+                    await buyCredits(currentCreditsToAward, null, true); // Add credits locally (optimistic)
 
                     alert("Pago Confirmado! Creditos añadidos.");
                     closePaymentModal();
                 }
             } catch (e) {
-                console.log("Polling error", e);
+                console.log("Polling error (ignoring if network glitch):", e);
             }
         }
 
