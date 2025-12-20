@@ -314,8 +314,12 @@
                     })
                 });
 
-                if (!response.ok) throw new Error("Server Error");
-                const { order } = await response.json();
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || "Server Error " + response.status);
+                }
+                const data = await response.json();
+                const order = data.order;
 
                 currentOrderId = order.orderId;
 
@@ -352,7 +356,7 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Error connecting to payment server. Ensure it is running.");
+                alert("Error: " + err.message);
                 closePaymentModal();
             }
         }
