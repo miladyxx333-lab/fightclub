@@ -1,9 +1,10 @@
 
-import { v4 as uuidv4 } from 'uuid';
-import fetch from 'node-fetch';
-import { createClient } from '@supabase/supabase-js';
+const { v4: uuidv4 } = require('uuid');
+// node-fetch v3 es ESM-only. Si da error, usar v2 o fetch nativo de Node 18+.
+// Vercel usa Node 18+ por defecto que tiene 'fetch' global. Probemos fetch global primero.
+const { createClient } = require('@supabase/supabase-js');
 
-// Configurar Supabase (Idealmente usar process.env)
+// Configurar Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hpebvddocrfqtkbvqusk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwZWJ2ZGRvY3JmcXRrYnZxdXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNzMwNzEsImV4cCI6MjA4MTc0OTA3MX0.byPXz6lvRFH81273qhHLI5H5QUxutYA0z7nGh1GTCdg';
 
@@ -13,13 +14,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 async function usdToSol(usdAmount) {
     try {
         const url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
+        // Usar fetch global de Node 18+
         const res = await fetch(url);
         if (!res.ok) throw new Error("CoinGecko API error");
         const data = await res.json();
         const price = data.solana.usd;
         return { sol: Number((usdAmount / price).toFixed(6)), price };
     } catch (e) {
-        console.error("Price fetch error, using fallback");
+        console.error("Price fetch error, using fallback -> " + e.message);
         return { sol: Number((usdAmount / 200).toFixed(6)), price: 200 };
     }
 }
@@ -34,7 +36,7 @@ function generateSolanaPayLink({ wallet, amountSOL, label, message, orderId }) {
     return `solana:${wallet}?${params.toString()}`;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -55,6 +57,8 @@ export default async function handler(req, res) {
 
     try {
         const { usd, wallet, label, message } = req.body;
+        // console.log("Received request:", req.body); // Debug logs
+
         if (!usd || !wallet) return res.status(400).json({ error: "usd and wallet required" });
 
         const orderId = `ORDER_${Date.now()}_${uuidv4().slice(0, 6)}`;
@@ -73,16 +77,17 @@ export default async function handler(req, res) {
             .from('payment_orders')
             .insert([{
                 id: orderId,
-                wallet: wallet, // La wallet que recibe el pago (tienda)
+                wallet: wallet,
                 amount_usd: usd,
                 amount_sol: amountSOL,
                 status: 'pending',
                 memo: orderId,
                 created_at: new Date()
             }]);
-        
+
         if (error) {
             console.error("Supabase Error:", error);
+            // Retorna detalles del error para debuggear en frontend
             return res.status(500).json({ error: "DB Error: " + error.message });
         }
 
@@ -97,7 +102,7 @@ export default async function handler(req, res) {
             }
         });
     } catch (err) {
-        console.error(err);
+        console.error("Server Error:", err);
         return res.status(500).json({ error: err.message });
     }
 }

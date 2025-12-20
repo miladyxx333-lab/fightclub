@@ -1,6 +1,6 @@
 
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { createClient } from '@supabase/supabase-js';
+const { Connection, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const { createClient } = require('@supabase/supabase-js');
 
 // Configurar Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hpebvddocrfqtkbvqusk.supabase.co';
@@ -15,7 +15,6 @@ const connection = new Connection(SOLANA_RPC, "confirmed");
 async function findPaymentByMemoAndAmount(receiverWallet, expectedSOL, orderId) {
     try {
         const pubKey = new PublicKey(receiverWallet);
-        // Buscar ultimas 20 txs (para no saturar)
         const sigInfos = await connection.getSignaturesForAddress(pubKey, { limit: 20 });
 
         for (const sigInfo of sigInfos) {
@@ -28,18 +27,10 @@ async function findPaymentByMemoAndAmount(receiverWallet, expectedSOL, orderId) 
 
             if (!tx || !tx.meta) continue;
 
-            // Busca el Log del Memo en los logs de la transacción (forma más rápida)
             const memoFound = tx.meta.logMessages?.some(log => log.includes(orderId));
 
-            // O busca en instrucciones parseadas
-            let memoInstrFound = false;
-            // ... (simplificado para serverless: confiar en logMessages o parseo basico)
-
-            // Si encontramos el memo (orderId) en los logs o instrucciones
-            // Nota: Para robustez total se debe parsear profundamente, pero checking logs suele funcinar con spl-memo
             if (!memoFound && !JSON.stringify(tx).includes(orderId)) continue;
 
-            // Verificar cambio de balance
             const accountKeys = tx.transaction.message.accountKeys.map(k => k.pubkey.toString());
             const index = accountKeys.indexOf(receiverWallet);
             if (index === -1) continue;
@@ -59,7 +50,7 @@ async function findPaymentByMemoAndAmount(receiverWallet, expectedSOL, orderId) 
     }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -70,7 +61,7 @@ export default async function handler(req, res) {
         return;
     }
 
-    const { orderId } = req.query; // En Vercel query params vienen aqui
+    const { orderId } = req.query;
     if (!orderId) return res.status(400).json({ error: "Missing orderId" });
 
     try {
@@ -91,7 +82,6 @@ export default async function handler(req, res) {
         const result = await findPaymentByMemoAndAmount(order.wallet, order.amount_sol, orderId);
 
         if (result.paid) {
-            // Actualizar DB
             await supabase
                 .from('payment_orders')
                 .update({
