@@ -1,7 +1,7 @@
-
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 const https = require('https');
+const QRCode = require('qrcode'); // Importar lib
 
 // Configurar Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hpebvddocrfqtkbvqusk.supabase.co';
@@ -94,6 +94,16 @@ module.exports = async function handler(req, res) {
             orderId
         });
 
+        // Generar QR en Backend (Server-Side Rendering)
+        const qrDataUrl = await QRCode.toDataURL(link, {
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        });
+
         // Guardar en Supabase
         const { data, error } = await supabase
             .from('payment_orders')
@@ -120,6 +130,7 @@ module.exports = async function handler(req, res) {
                 amountSOL,
                 priceUSDperSOL: price,
                 link,
+                qrDataUrl, // Enviamos la imagen generada
                 status: 'pending'
             }
         });

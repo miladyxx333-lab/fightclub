@@ -298,110 +298,58 @@
         }
 
         async function initiatePayment(credits, usdAmount) {
-            // DEBUG: Confirmar que entramos
-            // alert("Iniciando pago..."); 
-
             currentCreditsToAward = credits;
 
-            // Reset UI
+            // UI Reset
             paymentModal.classList.remove('hidden');
             paymentLoading.classList.remove('hidden');
             paymentActions.classList.add('hidden');
             qrDisplay.classList.add('hidden');
-            document.getElementById('qr-image').style.display = 'none'; // Ocultar imagen base
+            document.getElementById('qr-image').style.display = 'none';
+            // Clean old elements if any
+            const oldQr = document.getElementById('qrcode-container');
+            if (oldQr) oldQr.remove();
 
             try {
-                // 1. Calcular SOL y Generar ID localmente
-                const price = await getSolPriceFromCoinGecko();
-                const amountSOL = Number((usdAmount / price).toFixed(6));
-
-                const orderId = `ORDER_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-                currentOrderId = orderId;
-
-                const params = new URLSearchParams({
-                    amount: amountSOL.toString(),
-                    label: "CyberPollo Store",
-                    message: `Credits: ${credits}`,
-                    memo: orderId
+                // 1. Solicitar orden al Backend (Server-Side)
+                const response = await fetch(`${API_URL}/create-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        usd: usdAmount,
+                        wallet: MERCHANT_WALLET,
+                        label: "CyberPollo Store",
+                        message: `Credits: ${credits}`
+                    })
                 });
-                const link = `solana:${MERCHANT_WALLET}?${params.toString()}`;
 
-                console.log("Generated Link:", link);
-
-                // 2. Mostrar QR
-                // Intentar librería local primero
-                try {
-                    // Check library
-                    if (typeof QRCode === 'undefined') throw new Error("No QRCode lib");
-
-                    // Clean old
-                    const oldInfo = document.getElementById('qrcode-container');
-                    if (oldInfo) oldInfo.remove();
-
-                    const codeDiv = document.createElement('div');
-                    codeDiv.id = 'qrcode-container';
-                    codeDiv.style.margin = '0 auto';
-                    codeDiv.style.display = 'flex';
-                    codeDiv.style.justifyContent = 'center';
-
-                    qrDisplay.parentNode.insertBefore(codeDiv, qrDisplay.nextSibling);
-
-                    new QRCode(codeDiv, {
-                        text: link,
-                        width: 200,
-                        height: 200,
-                        correctLevel: QRCode.CorrectLevel.M
-                    });
-
-                    // Si llegamos aqui, éxito con lib local
-                    // Movemos el div al lugar correcto
-                    const qrArea = document.getElementById('qr-display');
-                    if (qrArea) {
-                        qrArea.innerHTML = '';
-                        qrArea.appendChild(codeDiv);
-                    }
-
-                } catch (qrErr) {
-                    console.warn("Local QR lib failed, using API fallback", qrErr);
-                    // Fallback: API externa
-                    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
-                    const qrImgCheck = document.getElementById('qr-image');
-                    qrImgCheck.src = qrApiUrl;
-                    qrImgCheck.style.display = 'block';
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Server Error " + response.status);
                 }
 
-                // UI Updates
+                const data = await response.json();
+                const order = data.order;
+                currentOrderId = order.orderId;
+
+                // 2. Mostrar QR generado por el servidor (Imagen Base64)
+                const qrImage = document.getElementById('qr-image');
+                qrImage.src = order.qrDataUrl;
+                qrImage.style.display = 'block';
+
+                descText.textContent = `Scan to pay ~${order.amountSOL} SOL`;
+
+                // Mostrar botones
                 paymentLoading.classList.add('hidden');
                 paymentActions.classList.remove('hidden');
-                qrDisplay.classList.remove('hidden'); // Mostrar contenedor QR
+                qrDisplay.classList.remove('hidden');
 
-                descText.textContent = `Scan to pay ~${amountSOL} SOL`;
                 btnOpenWallet.classList.remove('hidden');
-                btnOpenWallet.onclick = () => window.location.href = link;
+                btnOpenWallet.onclick = () => window.location.href = order.link;
 
-
-                // 4. Registrar Orden en Supabase (Segundo plano)
-                // Usamos el cliente supabase global ya autenticado
-                const { error } = await supabase
-                    .from('payment_orders')
-                    .insert([{
-                        id: orderId,
-                        wallet: MERCHANT_WALLET,
-                        amount_usd: usdAmount,
-                        amount_sol: amountSOL,
-                        status: 'pending',
-                        memo: orderId,
-                        created_at: new Date()
-                    }]);
-
-                if (error) {
-                    console.error("Error guardando orden en DB (pero QR es válido):", error);
-                    // No bloqueamos al usuario, el pago se puede verificar en blockchain igual
-                }
-
-                // 5. Iniciar Polling (Verificación)
+                // 3. Polling de Verificación
                 if (pollInterval) clearInterval(pollInterval);
-                pollInterval = setInterval(() => checkStatus(orderId), 3000);
+                pollInterval = setInterval(() => checkStatus(order.orderId), 3000);
 
             } catch (err) {
                 console.error(err);
