@@ -298,6 +298,9 @@
         }
 
         async function initiatePayment(credits, usdAmount) {
+            // DEBUG: Confirmar que entramos
+            // alert("Iniciando pago..."); 
+
             currentCreditsToAward = credits;
 
             // Reset UI
@@ -305,21 +308,16 @@
             paymentLoading.classList.remove('hidden');
             paymentActions.classList.add('hidden');
             qrDisplay.classList.add('hidden');
-            document.getElementById('qr-image').style.display = 'none';
-            const oldQr = document.getElementById('qrcode-container');
-            if (oldQr) oldQr.remove();
+            document.getElementById('qr-image').style.display = 'none'; // Ocultar imagen base
 
             try {
                 // 1. Calcular SOL y Generar ID localmente
                 const price = await getSolPriceFromCoinGecko();
                 const amountSOL = Number((usdAmount / price).toFixed(6));
 
-                // Generar ID único (Timestamp + Random)
                 const orderId = `ORDER_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
                 currentOrderId = orderId;
 
-                // 2. Construir Link Solana Pay
-                // solana:<wallet>?amount=<amount>&label=<label>&message=<message>&memo=<memo>
                 const params = new URLSearchParams({
                     amount: amountSOL.toString(),
                     label: "CyberPollo Store",
@@ -330,42 +328,57 @@
 
                 console.log("Generated Link:", link);
 
-                // 3. Mostrar QR Inmediatamente
-                const codeDiv = document.createElement('div');
-                codeDiv.id = 'qrcode-container';
-                codeDiv.style.margin = '0 auto';
-                codeDiv.style.display = 'flex';
-                codeDiv.style.justifyContent = 'center';
-                // Insert
-                qrDisplay.parentNode.insertBefore(codeDiv, qrDisplay.nextSibling); // Ajuste de posición flexible
+                // 2. Mostrar QR
+                // Intentar librería local primero
+                try {
+                    // Check library
+                    if (typeof QRCode === 'undefined') throw new Error("No QRCode lib");
 
-                // Asegurar que qrcodejs esté cargado
-                if (typeof QRCode === 'undefined') {
-                    throw new Error("QRCode library not loaded");
+                    // Clean old
+                    const oldInfo = document.getElementById('qrcode-container');
+                    if (oldInfo) oldInfo.remove();
+
+                    const codeDiv = document.createElement('div');
+                    codeDiv.id = 'qrcode-container';
+                    codeDiv.style.margin = '0 auto';
+                    codeDiv.style.display = 'flex';
+                    codeDiv.style.justifyContent = 'center';
+
+                    qrDisplay.parentNode.insertBefore(codeDiv, qrDisplay.nextSibling);
+
+                    new QRCode(codeDiv, {
+                        text: link,
+                        width: 200,
+                        height: 200,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+
+                    // Si llegamos aqui, éxito con lib local
+                    // Movemos el div al lugar correcto
+                    const qrArea = document.getElementById('qr-display');
+                    if (qrArea) {
+                        qrArea.innerHTML = '';
+                        qrArea.appendChild(codeDiv);
+                    }
+
+                } catch (qrErr) {
+                    console.warn("Local QR lib failed, using API fallback", qrErr);
+                    // Fallback: API externa
+                    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
+                    const qrImgCheck = document.getElementById('qr-image');
+                    qrImgCheck.src = qrApiUrl;
+                    qrImgCheck.style.display = 'block';
                 }
-
-                new QRCode(codeDiv, {
-                    text: link,
-                    width: 200,
-                    height: 200,
-                    correctLevel: QRCode.CorrectLevel.M
-                });
 
                 // UI Updates
                 paymentLoading.classList.add('hidden');
                 paymentActions.classList.remove('hidden');
-                qrDisplay.classList.remove('hidden');
-
-                // Mover el QR generado dentro del área visible si quedó fuera
-                const qrArea = document.getElementById('qr-display');
-                if (qrArea) {
-                    qrArea.innerHTML = ''; // Limpiar imagen estática
-                    qrArea.appendChild(codeDiv);
-                }
+                qrDisplay.classList.remove('hidden'); // Mostrar contenedor QR
 
                 descText.textContent = `Scan to pay ~${amountSOL} SOL`;
                 btnOpenWallet.classList.remove('hidden');
                 btnOpenWallet.onclick = () => window.location.href = link;
+
 
                 // 4. Registrar Orden en Supabase (Segundo plano)
                 // Usamos el cliente supabase global ya autenticado
