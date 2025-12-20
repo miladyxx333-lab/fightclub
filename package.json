@@ -1,0 +1,15 @@
+{
+  "name": "chicken-combat-game",
+  "version": "1.0.0",
+  "description": "Chicken Combat App with Solana Pay",
+  "main": "api/index.js",
+  "dependencies": {
+    "@solana/web3.js": "^1.78.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.1"
+  },
+  "scripts": {
+    "start": "node api/index.js"
+  }
+}
