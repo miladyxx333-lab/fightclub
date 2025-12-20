@@ -5,7 +5,7 @@ create table public.game_users (
   id uuid default uuid_generate_v4() primary key,
   username text unique not null,
   password text not null, -- En producción esto debería ser hasheado
-  credits bigint default 1000,
+  credits bigint default 100,
   created_at timestamptz default now()
 );
 

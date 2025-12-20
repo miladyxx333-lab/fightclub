@@ -46,7 +46,7 @@ class AuthSystem {
         const newUser = {
             username: username,
             password: password, // Almacenado directo como en el ejemplo (MVP)
-            credits: 1000
+            credits: 100
         };
 
         const { data, error } = await supabase
