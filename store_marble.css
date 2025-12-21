@@ -1,0 +1,180 @@
+/* MarbleBet-Style Shop CSS */
+
+/* Fondo oscuro general */
+body {
+    background-color: #050510 !important; /* Force darker bg */
+}
+
+/* Modal Overlay (Replaces Store Grid) */
+.betting-overlay {
+    position: fixed; 
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 100;
+    display: flex; justify-content: center; align-items: center;
+    /* Fondo detrás del modal si no cubre todo */
+    background: radial-gradient(circle at center, #1a1a2e 0%, #000000 100%); 
+}
+
+/* El Modal en sí */
+.betting-modal {
+    background: #0a0a1a; 
+    border: 2px solid #9945FF; 
+    box-shadow: 0 0 30px rgba(153, 69, 255, 0.4), inset 0 0 20px rgba(153,69,255,0.1);
+    border-radius: 24px;
+    padding: 30px; 
+    width: 90%; 
+    max-width: 420px; 
+    color: white;
+    text-align: center;
+    font-family: 'Poppins', sans-serif; /* A modern font */
+    position: relative;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.betting-title {
+    color: #ffffff;
+    text-transform: uppercase;
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    margin-bottom: 25px;
+    display: flex; justify-content: center; align-items: center; gap: 10px;
+    font-weight: 800;
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+/* Daily Gift Section */
+.daily-gift-section {
+    background: linear-gradient(90deg, rgba(255,215,0,0.1), transparent); 
+    border-left: 4px solid gold;
+    border-radius: 12px; 
+    padding: 15px; 
+    margin-bottom: 25px;
+    display: flex; justify-content: space-between; align-items: center;
+    text-align: left;
+    transition: background 0.3s;
+}
+.daily-gift-section:hover {
+    background: linear-gradient(90deg, rgba(255,215,0,0.15), transparent); 
+}
+.gift-info strong { display: block; color: gold; font-size: 0.9rem; margin-bottom: 2px;}
+.gift-info span { font-size: 0.75rem; color: #888; }
+
+.btn-claim {
+    background: gold; color: #000; border: none; 
+    padding: 8px 16px; border-radius: 20px; 
+    font-weight: 800; font-size: 0.75rem; cursor: pointer;
+    text-transform: uppercase;
+    box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+}
+.btn-claim:disabled { background: #333; color: #555; cursor: default; box-shadow: none;}
+
+/* Solana Pay Card */
+.solana-pay-card {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+.solana-pay-card::before {
+    content: ""; position: absolute; top:0; left:0; right:0; height: 2px;
+    background: linear-gradient(90deg, #9945FF, #14F195);
+}
+
+.solana-header {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-bottom: 20px;
+    font-weight: bold;
+    color: #aaa;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Input Area */
+.input-wrapper {
+    position: relative; margin-bottom: 15px;
+}
+
+#shopAmountUSD {
+    background: #000; border: 2px solid #333; color: white;
+    padding: 15px 50px 15px 20px; /* Padding for currency symbol */
+    border-radius: 12px; width: 100%; text-align: center;
+    font-size: 1.8rem; font-weight: bold;
+    outline: none;
+    transition: border-color 0.2s;
+}
+#shopAmountUSD:focus { border-color: #9945FF; }
+
+.currency-tag {
+    position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+    color: #555; font-weight: bold; pointer-events: none;
+}
+
+#creditsPreview {
+    color: #14F195; margin-bottom: 20px; font-size: 1rem; font-weight: 600;
+    text-shadow: 0 0 10px rgba(20, 241, 149, 0.2);
+}
+
+/* Generate Button */
+.action-btn-store {
+    background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
+    border: none; color: black; font-weight: 900;
+    padding: 16px; border-radius: 14px; cursor: pointer;
+    width: 100%; font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(20, 241, 149, 0.3);
+    transition: all 0.2s;
+    position: relative; overflow: hidden;
+}
+.action-btn-store:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 6px 25px rgba(153, 69, 255, 0.5); 
+}
+.action-btn-store:active { transform: scale(0.98); }
+.action-btn-store:disabled { 
+    background: #333; color: #666; 
+    box-shadow: none; cursor: wait; transform: none;
+}
+
+/* QR Area */
+#qrCodeArea {
+    background: white; 
+    padding: 15px;
+    border-radius: 12px;
+    margin-top: 20px;
+    color: black;
+    animation: slideDown 0.3s ease-out;
+}
+@keyframes slideDown {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+#qrCodeContainer img { 
+    width: 100%; height: auto; 
+    display: block; 
+    border-radius: 8px; 
+    border: 1px solid #eee;
+}
+#qrInfoText {
+    margin-top: 10px; font-size: 0.8rem; color: #333; font-weight: 500;
+}
+
+.back-btn {
+    position: absolute; top: 20px; left: 20px;
+    color: #666; text-decoration: none; font-size: 1.5rem;
+    transition: color 0.2s;
+}
+.back-btn:hover { color: white; }
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .betting-modal { width: 95%; padding: 20px; }
+}
