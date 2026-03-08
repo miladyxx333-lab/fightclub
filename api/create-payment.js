@@ -75,11 +75,13 @@ module.exports = async function handler(req, res) {
     }
 
     try {
-        const { usd, wallet, label, message } = req.body;
+        const { usd, label, message } = req.body;
 
-        if (!usd || !wallet) {
-            return res.status(400).json({ error: "usd and wallet required" });
+        if (!usd) {
+            return res.status(400).json({ error: "usd is required" });
         }
+        
+        const wallet = process.env.MERCHANT_WALLET || 'e6uU5apmNZrUX4L2fCZ7hupZMwofS3JUNXEHcSxqcBD';
 
         const orderId = `ORDER_${Date.now()}_${uuidv4().slice(0, 6)}`;
 

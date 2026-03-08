@@ -264,10 +264,13 @@
         const WITHDRAW_KEY = 'cp_withdrawals';
         const API_URL = "/api";
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            await auth.requireAuth();
             const user = auth.getCurrentUser();
+            
+            // Check admin status against the server-validated user info
             if (!user || user.username !== 'admin') {
-                alert('Acceso Denegado. Solo acceso para administradores (usuario: admin).');
+                alert('Acceso Denegado. Solo acceso para administradores.');
                 window.location.href = 'index.html';
                 return;
             }

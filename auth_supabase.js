@@ -103,41 +103,36 @@ class AuthSystem {
         this.currentUser.credits = newTotal;
         this.saveSession();
 
-        const { error } = await supabase
-            .from('game_users')
-            .update({ credits: newTotal })
-            .eq('id', this.currentUser.id);
+        const { data, error } = await supabase.rpc('add_credits_secure', {
+            p_user_id: this.currentUser.id,
+            p_password: this.currentUser.password,
+            p_amount: amount
+        });
 
-        if (error) console.error("Error sync credits", error);
+        if (error || !data) console.error("Error sync credits", error);
     }
 
     async deductCredits(amount) {
         if (!this.currentUser) return false;
 
-        // Verificación server-side simple
-        const { data: serverUser } = await supabase
-            .from('game_users')
-            .select('credits')
-            .eq('id', this.currentUser.id)
-            .single();
-
-        const currentCredits = serverUser ? serverUser.credits : this.currentUser.credits;
-
+        const currentCredits = this.currentUser.credits;
         if (currentCredits < amount) return false;
 
-        const newTotal = currentCredits - amount;
-
-        // Optimistic
-        this.currentUser.credits = newTotal;
+        // Optimistic update
+        this.currentUser.credits -= amount;
         this.saveSession();
 
-        const { error } = await supabase
-            .from('game_users')
-            .update({ credits: newTotal })
-            .eq('id', this.currentUser.id);
+        const { data, error } = await supabase.rpc('deduct_credits_secure', {
+            p_user_id: this.currentUser.id,
+            p_password: this.currentUser.password,
+            p_amount: amount
+        });
 
-        if (error) {
+        if (error || !data) {
             console.error("Error deducting credits", error);
+            // Revertir cambio optimista
+            this.currentUser.credits += amount;
+            this.saveSession();
             return false;
         }
         return true;
