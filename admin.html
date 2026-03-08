@@ -106,7 +106,8 @@
         }
 
         .status-paid,
-        .status-approved {
+        .status-approved,
+        .status-pagado {
             background: rgba(34, 197, 94, 0.2);
             color: #4ade80;
             border: 1px solid rgba(34, 197, 94, 0.3);
@@ -255,13 +256,21 @@
         </main>
     </div>
 
-    <script src="auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="auth_supabase.js"></script>
     <script>
         const AUTH_USERS_KEY = 'cp_users';
         const WITHDRAW_KEY = 'cp_withdrawals';
-        const API_URL = "http://localhost:3000/api";
+        const API_URL = "/api";
 
         document.addEventListener('DOMContentLoaded', () => {
+            const user = auth.getCurrentUser();
+            if (!user || user.username !== 'admin') {
+                alert('Acceso Denegado. Solo acceso para administradores (usuario: admin).');
+                window.location.href = 'index.html';
+                return;
+            }
             initDashboard();
         });
 
@@ -350,8 +359,11 @@
                 let actions = '-';
                 if (w.status === 'pending') {
                     actions = `
-                        <button class="action-btn-small btn-approve" onclick="processWithdraw(${index}, 'approved')">✓ Pagar</button>
-                        <button class="action-btn-small btn-reject" onclick="processWithdraw(${index}, 'rejected')">✗ Rechazar</button>
+                        <button class="action-btn-small btn-approve" onclick="processWithdraw(${index}, 'pagado')">✓ Pagado</button>
+                    `;
+                } else if (w.status === 'pagado') {
+                    actions = `
+                        <button class="action-btn-small btn-reject" style="background:#facc15;color:black;" onclick="processWithdraw(${index}, 'pending')">↺ Pendiente</button>
                     `;
                 }
 
@@ -374,20 +386,11 @@
             if (!withdrawals[index]) return;
 
             withdrawals[index].status = newStatus;
-            // Here real logic would send SOL via RPC. For now just update state.
-
-            // If rejected, refund credits? 
-            if (newStatus === 'rejected') {
-                // Refund logic (requires auth system or modifying users obj directly)
-                const users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY));
-                const username = withdrawals[index].user;
-                if (users[username]) {
-                    users[username].credits += withdrawals[index].amount;
-                    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-                    alert(`Solicitud rechazada. Se han reembolsado ${withdrawals[index].amount} creditos a ${username}.`);
-                }
-            } else {
+            
+            if (newStatus === 'pagado') {
                 alert(`Marcado como PAGADO. En un sistema real, esto enviaría ${(withdrawals[index].amount / 1000000).toFixed(4)} SOL a la wallet.`);
+            } else if (newStatus === 'pending') {
+                alert(`Solicitud revertida a PENDIENTE.`);
             }
 
             localStorage.setItem(WITHDRAW_KEY, JSON.stringify(withdrawals));
