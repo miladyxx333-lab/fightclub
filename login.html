@@ -127,7 +127,7 @@
                 if (isLogin) {
                     const result = await auth.login(user, pass);
                     if (result.success) {
-                        window.location.href = 'index.html';
+                        window.location.href = 'game.html';
                     } else {
                         errorMsg.textContent = result.message;
                         submitBtn.textContent = 'ENTRAR';

@@ -170,12 +170,12 @@
     <div class="app-background"></div>
     <div class="app-container" style="max-width: 100%;">
         <header class="glass-header" style="justify-content: flex-start; gap: 20px;">
-            <div class="logo" onclick="window.location.href='index.html'" style="cursor: pointer;">
+            <div class="logo" onclick="window.location.href='game.html'" style="cursor: pointer;">
                 <span class="icon">🛡️</span>
                 <h1>Admin <span class="highlight">Dashboard</span></h1>
             </div>
             <div style="margin-left: auto;">
-                <button class="nav-btn" onclick="window.location.href='index.html'">Volver al Juego</button>
+                <button class="nav-btn" onclick="window.location.href='game.html'">Volver al Juego</button>
             </div>
         </header>
 
@@ -271,7 +271,7 @@
             // Check admin status against the server-validated user info
             if (!user || user.username !== 'admin') {
                 alert('Acceso Denegado. Solo acceso para administradores.');
-                window.location.href = 'index.html';
+                window.location.href = 'game.html';
                 return;
             }
             initDashboard();

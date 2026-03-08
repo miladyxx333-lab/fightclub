@@ -1,246 +1,373 @@
 <!DOCTYPE html>
-<html lang="es">
-
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberPollo Arena 2.0 - Torneo Masivo</title>
+    <title>KillPollo - The Ultimate Cyber Arena</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=cyber3">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: #050505;
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .promo-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, rgba(255, 0, 127, 0.2) 0%, #050505 80%);
+            position: relative;
+            padding: 2rem;
+            z-index: 1;
+        }
+
+        /* Abstract Action Lines / Glitch effects */
+        .promo-container::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(20, 241, 149, 0.05) 2px, rgba(20, 241, 149, 0.05) 4px);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .hero-banner {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: pulse-glow 3s infinite alternate;
+        }
+
+        .main-headline {
+            font-size: 6rem;
+            font-weight: 900;
+            line-height: 1;
+            margin: 0;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #ff073a, #ff007f, #9945ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 0px 30px rgba(255, 7, 58, 0.5);
+            letter-spacing: -2px;
+        }
+
+        .sub-headline {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--highlight);
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            margin-top: 1rem;
+            text-shadow: 0 0 10px rgba(20, 241, 149, 0.8);
+        }
+
+        /* Poster Grid (NFT Showcase) */
+        .rooster-wall {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 3rem 0;
+            width: 100%;
+            max-width: 1200px;
+            perspective: 1000px;
+        }
+
+        @media (max-width: 900px) {
+            .rooster-wall {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .main-headline {
+                font-size: 4rem;
+            }
+        }
+
+        .nft-card {
+            background: #000;
+            border: 2px solid rgba(255, 7, 58, 0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: all 0.4s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+            aspect-ratio: 1/1;
+        }
+
+        .nft-card:hover {
+            transform: scale(1.05) translateY(-10px) rotateY(10deg);
+            border-color: #20f195;
+            box-shadow: 0 10px 30px rgba(32, 241, 149, 0.5);
+            z-index: 10;
+        }
+
+        .nft-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: contrast(1.2) saturate(1.2);
+            transition: filter 0.3s ease;
+        }
+        
+        .nft-card:hover img {
+            filter: contrast(1.1) saturate(1.5);
+        }
+
+        .nft-id-tag {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 8px;
+            text-align: center;
+            font-weight: 900;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-top: 2px solid var(--danger);
+            backdrop-filter: blur(5px);
+        }
+
+        .nft-card:hover .nft-id-tag {
+            border-top-color: var(--success);
+            color: var(--success);
+            text-shadow: 0 0 10px var(--success);
+        }
+
+        .action-steps {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin: 3rem 0;
+            flex-wrap: wrap;
+        }
+
+        .step-box {
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem 2.5rem;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 250px;
+            border-bottom: 4px solid var(--danger);
+        }
+
+        .step-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        
+        .step-box p {
+            margin: 0;
+            color: #aaa;
+            font-size: 1.1rem;
+        }
+
+        .step-box span.num {
+            display: block;
+            font-size: 3rem;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.1);
+            margin-bottom: -30px;
+            text-align: center;
+            z-index: 0;
+        }
+
+        /* Call to Action */
+        .massive-btn-container {
+            margin-top: 2rem;
+            margin-bottom: 5rem;
+            position: relative;
+        }
+
+        .massive-btn-container::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120%; height: 160%;
+            background: radial-gradient(ellipse at center, rgba(255, 7, 58, 0.4) 0%, transparent 70%);
+            z-index: -1;
+            border-radius: 50%;
+            animation: pulse-glow 2s infinite alternate;
+        }
+
+        .combat-btn-massive {
+            display: inline-block;
+            font-size: 2.5rem;
+            font-weight: 900;
+            padding: 1.5rem 4rem;
+            background: linear-gradient(135deg, #ff073a, #ff007f);
+            color: white;
+            text-decoration: none;
+            text-transform: uppercase;
+            border-radius: 8px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 40px rgba(255, 7, 58, 1), inset 0 0 20px rgba(255, 255, 255, 0.5);
+            letter-spacing: 4px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .combat-btn-massive::after {
+            content: '>>>';
+            position: absolute;
+            right: -50px;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .combat-btn-massive:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 60px rgba(255, 7, 58, 1), 0 0 20px rgba(255, 255, 255, 1);
+            padding-right: 6rem;
+            padding-left: 2rem;
+        }
+
+        .combat-btn-massive:hover::after {
+            right: 25px;
+            opacity: 1;
+        }
+
+        @keyframes pulse-glow {
+            0% { opacity: 0.8; filter: drop-shadow(0 0 20px rgba(255,0,127,0.5)); }
+            100% { opacity: 1; filter: drop-shadow(0 0 40px rgba(255,0,127,1)); }
+        }
+
+        /* Glitch text for extra action feel */
+        .glitch-text {
+            position: relative;
+            color: white;
+        }
+
+        /* Stats banner */
+        .stats-banner {
+            display: flex;
+            width: 100%;
+            background: #ff073a;
+            color: #fff;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 10px 0;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        
+        .stats-marquee {
+            display: inline-block;
+            animation: scroll-left 15s linear infinite;
+        }
+        
+        @keyframes scroll-left {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+    </style>
 </head>
-
 <body>
-    <div class="app-background"></div>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="glass-header">
-            <div class="logo">
-                <span class="icon">🐔</span>
-                <h1 class="neon-title" style="margin: 0; font-size: 1.8em;">KillPollo <span
-                        class="highlight">Tournament</span></h1>
-            </div>
-            <div class="user-stats">
-                <button class="nav-btn" id="lang-toggle" onclick="toggleLanguage()"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(255,255,255,0.1);">
-                    🇺🇸 EN
-                </button>
-                <button class="nav-btn" data-i18n="claim" id="open-withdraw-btn"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(59, 130, 246, 0.3); border: 1px solid rgba(59, 130, 246, 0.5);">
-                    💎 Retirar
-                </button>
-                <button class="nav-btn" data-i18n="nftMenu" onclick="window.location.href='nft.html'"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: linear-gradient(135deg, rgba(153, 69, 255, 0.3), rgba(20, 241, 149, 0.3)); border: 1px solid rgba(20, 241, 149, 0.5);">
-                    🖼️ NFTs
-                </button>
-                <button class="nav-btn" data-i18n="leaderboard" onclick="window.location.href='leaderboard.html'"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(0,0,0,0.3);">
-                    🏆 Tabla
-                </button>
-                <button class="nav-btn" data-i18n="store" onclick="window.location.href='store.html'"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(0,0,0,0.3);">
-                    🛒 Tienda
-                </button>
-                <button class="nav-btn" data-i18n="profile" onclick="window.location.href='profile.html'"
-                    style="width: auto; padding: 5px 15px; border-radius: 20px; margin-right: 10px; background: rgba(255, 100, 200, 0.2); border: 1px solid rgba(255, 100, 200, 0.4);">
-                    👤 Perfil
-                </button>
-                <div class="chip credits-chip">
-                    <span class="label" data-i18n="credits">Créditos:</span>
-                    <span id="user-credits" class="value">--</span>
-                </div>
-                <button class="nav-btn" id="logout-btn"
-                    style="width: auto; padding: 5px 10px; border-radius: 8px; margin-left: 10px; background: var(--danger);">
-                    ⏻
-                </button>
-            </div>
-        </header>
 
-        <main class="main-layout">
-            <!-- Left Column: Selection -->
-            <!-- Left Column: Selection (Redesigned) -->
-            <section class="selection-panel glass-panel cyber-deck-container">
-                <div class="deck-header">
-                    <div class="deck-title-group">
-                        <span class="deck-icon">🧬</span>
-                        <div>
-                            <h3 data-i18n="dbTitle">CyberPollo DB</h3>
-                            <span class="deck-subtitle">10,000 NFTs</span>
-                        </div>
-                    </div>
-
-                    <div class="deck-controls">
-                        <div class="search-wrapper">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="search-input" placeholder="ID #..." class="cyber-search">
-                        </div>
-                        <div class="filter-group">
-                            <button id="sort-random" class="icon-btn" title="Randomize">🎲</button>
-                            <button id="sort-asc" class="icon-btn" title="Ascending">⬇️</button>
-                            <button id="sort-desc" class="icon-btn" title="Descending">⬆️</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- The 2x2 Grid Area -->
-                <div class="cyber-grid" id="fighters-grid">
-                    <!-- Cards injected via JS -->
-                    <div class="loading-spinner">Initializing Deck...</div>
-                </div>
-
-                <div class="deck-footer">
-                    <button id="prev-page" class="nav-btn-cyber">&lt;</button>
-                    <span id="page-info" class="page-display">1 / 2500</span>
-                    <button id="next-page" class="nav-btn-cyber">&gt;</button>
-                </div>
-            </section>
-
-            <!-- Right Column: Arena & Betting -->
-            <section class="arena-panel">
-                <!-- Battle Screen -->
-                <div class="battle-stage glass-panel">
-                    <div class="vs-overlay" id="vs-overlay">VS</div>
-
-                    <!-- Player Side -->
-                    <div class="fighter-card player-side" id="player-fighter-display">
-                        <div class="placeholder-msg" data-i18n="selectChicken">Selecciona un Pollo</div>
-                        <img src="" alt="" class="fighter-img hidden">
-                        <div class="fighter-stats hidden">
-                            <h4 class="fighter-name">--</h4>
-                            <!-- HP Bar -->
-                            <div class="hp-container">
-                                <div class="hp-label">HP: <span id="player-hp-text">100/100</span></div>
-                                <div class="stat-bar hp-bar-bg">
-                                    <div class="fill hp-fill" id="player-hp-bar" style="width: 100%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Opponent Side -->
-                    <div class="fighter-card opponent-side" id="opponent-fighter-display">
-                        <div class="placeholder-msg">?</div>
-                        <img src="" alt="" class="fighter-img hidden">
-                        <div class="fighter-stats hidden">
-                            <h4 class="fighter-name">--</h4>
-                            <div class="hp-container">
-                                <div class="hp-label">HP: <span id="opponent-hp-text">100/100</span></div>
-                                <div class="stat-bar hp-bar-bg">
-                                    <div class="fill hp-fill" id="opponent-hp-bar"
-                                        style="width: 100%; background-color: var(--danger);"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="battle-log" class="battle-log" data-i18n="waiting">Esperando combate...</div>
-                </div>
-
-                <!-- Dedicated Dice & Interaction Zone -->
-                <div id="combat-interaction-area" class="combat-zone glass-panel hidden">
-                    <div class="seed-container compact">
-                        <div class="seed-group">
-                            <label class="seed-label" data-i18n="serverSeed">Server Seed (Hidden)</label>
-                            <input type="text" id="server-seed-display" class="seed-input" readonly
-                                value="????????????????">
-                        </div>
-                        <div class="seed-group">
-                            <label class="seed-label" data-i18n="clientSeed">Client Seed</label>
-                            <input type="text" id="client-seed-input" class="seed-input"
-                                placeholder="Tu semilla hex...">
-                        </div>
-                    </div>
-
-                    <div class="dice-wrapper">
-                        <div class="dice-container">
-                            <div id="dice" class="dice">
-                                <div class="face front">1</div>
-                                <div class="face back">6</div>
-                                <div class="face right">3</div>
-                                <div class="face left">4</div>
-                                <div class="face top">2</div>
-                                <div class="face bottom">5</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="combat-controls">
-                        <div class="combat-instruction" data-i18n="predict">PREDICE EL TIRO</div>
-                        <div class="btn-group">
-                            <button id="btn-low" class="combat-btn btn-low" data-i18n="low">BAJO (1-3)</button>
-                            <button id="btn-high" class="combat-btn btn-high" data-i18n="high">ALTO (4-6)</button>
-                        </div>
-                    </div>
-                </div>
-    </div>
-
-    <div id="battle-log" class="battle-log">Esperando combate...</div>
-    </div>
-
-    <!-- Betting Controls -->
-    <div class="betting-controls glass-panel">
-        <h3 data-i18n="betSettings">Configurar Apuesta</h3>
-
-        <div class="control-group">
-            <label data-i18n="betAmount">Monto de Apuesta</label>
-            <div class="input-with-icon">
-                <span class="currency">$</span>
-                <input type="number" id="bet-amount" value="100" min="10">
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label><span data-i18n="riskMultiplier">Multiplicador de Riesgo:</span> <span id="risk-value"
-                    class="highlight-text">x2.0</span></label>
-            <input type="range" id="risk-slider" min="2" max="100" step="1" value="2">
-            <div class="risk-info">
-                <span><span data-i18n="winChance">Probabilidad de Victoria:</span> <span
-                        id="win-chance">47.5%</span></span>
-                <span><span data-i18n="potentialWin">Ganancia Potencial:</span> <span id="potential-win"
-                        class="success-text">+200</span></span>
-            </div>
-        </div>
-
-        <button id="start-fight-btn" class="action-btn mega-btn" disabled data-i18n="startCombat">
-            INICIAR COMBATE
-        </button>
-    </div>
-    </section>
-    </main>
-    </div>
-    <!-- Withdrawal Model (Modal) -->
-    <div id="withdraw-modal" class="modal-overlay hidden">
-        <div class="modal-content glass-panel">
-            <h2 data-i18n="claim">💎 Retirar</h2>
-            <!-- Rate info removed as requested -->
-
-            <div class="control-group">
-                <label data-i18n="walletAddr">Dirección Solana</label>
-                <input type="text" id="wallet-address" placeholder="Solana Wallet..." class="full-width-input">
-            </div>
-
-            <div class="control-group">
-                <label data-i18n="claimAmount">Monto a Retirar</label>
-                <input type="number" id="withdraw-amount" placeholder="1000000" min="1000" class="full-width-input">
-            </div>
-
-            <div class="modal-actions">
-                <button id="cancel-withdraw" class="combat-btn btn-low"
-                    style="background: rgba(255,255,255,0.1);">Cancel</button>
-                <button id="confirm-withdraw" class="combat-btn btn-high" data-i18n="submitClaim">Enviar</button>
-            </div>
+    <!-- Marquee Alert -->
+    <div class="stats-banner">
+        <div class="stats-marquee">
+            [SYS_ALERT] 10,000 UNIQUE NFT FIGHTERS LOADED // PROVABLY FAIR COMBAT ACTIVE // RISK YOUR REPUTATION // CRYPTO REWARDS SECURED // ONLY THE STRONGEST SURVIVE
         </div>
     </div>
 
+    <div class="promo-container">
+        
+        <div class="hero-banner">
+            <h1 class="main-headline">10,000 Fighters</h1>
+            <h2 class="sub-headline">One Ultimate Arena</h2>
+            <p style="font-size: 1.2rem; max-width: 600px; margin: 15px auto; color: #ccc;">
+                No fluff. Pure combat. Pick your NFT. Predict the roll. Crush your opponent. 
+            </p>
+        </div>
+
+        <!-- Dynamic Grid where we inject random 8 NFTs from metadata.js -->
+        <div class="rooster-wall" id="dynamic-roosters">
+            <!-- Loading placeholders until JS runs -->
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+            <div class="nft-card"><div class="nft-id-tag">LOADING...</div></div>
+        </div>
+
+        <div class="action-steps">
+            <div class="step-box" style="border-color: #3b82f6;">
+                <span class="num">01</span>
+                <h3>DRAFT</h3>
+                <p>Select your CyberPollo NFT</p>
+            </div>
+            <div class="step-box" style="border-color: #9945ff;">
+                <span class="num">02</span>
+                <h3>PREDICT</h3>
+                <p>Roll HIGH (4-6) or LOW (1-3)</p>
+            </div>
+            <div class="step-box" style="border-color: #20f195;">
+                <span class="num">03</span>
+                <h3>DESTROY</h3>
+                <p>Obliterate their HP. Take the glory.</p>
+            </div>
+        </div>
+
+        <div class="massive-btn-container">
+            <a href="game.html" class="combat-btn-massive">FIGHT NOW</a>
+        </div>
+
+    </div>
+
+    <!-- Script to load 8 random NFTs from the 10,000 collection -->
     <script src="assets/metadata.js"></script>
-    <!-- Supabase Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabaseClient.js"></script>
-    <script src="auth_supabase.js"></script>
-    <script src="lang.js"></script>
-    <script src="combat_engine.js"></script>
-    <script src="script.js?v=cyber3"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const wall = document.getElementById('dynamic-roosters');
+            
+            // Wait shortly to make sure window.chickenData is loaded
+            setTimeout(() => {
+                if (window.chickenData && window.chickenData.length > 0) {
+                    wall.innerHTML = ''; // clear loading
+                    
+                    // Pick 8 random fighters
+                    const numToPick = window.innerWidth < 900 ? 4 : 8; // responsive grid items
+                    let selected = [];
+                    for(let i=0; i<numToPick; i++) {
+                        const randomIndex = Math.floor(Math.random() * window.chickenData.length);
+                        selected.push(window.chickenData[randomIndex]);
+                    }
+                    
+                    selected.forEach(chicken => {
+                        const card = document.createElement('div');
+                        card.className = 'nft-card';
+                        
+                        // we format the image src correctly if it doesn't already have the base path
+                        // metadata.js seems to have image: "assets/images/X.jpeg" based on our check earlier
+                        card.innerHTML = `
+                            <img src="${chicken.image}" alt="Fighter ${chicken.id}" onerror="this.src='assets/images/1.jpeg'">
+                            <div class="nft-id-tag">ID #${chicken.id}</div>
+                        `;
+                        wall.appendChild(card);
+                    });
+                }
+            }, 300);
+        });
+    </script>
 </body>
-
 </html>
