@@ -1112,3 +1112,120 @@ input[type="range"] {
     border-top: 1px solid rgba(255,255,255,0.1);
     z-index: 10;
 }
+
+/* =========================================
+   RESPONSIVE DESIGN (MOBILE ADAPTATIONS)
+   ========================================= */
+
+@media (max-width: 900px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    
+    .app-container {
+        height: auto;
+        padding: 5px;
+    }
+
+    .glass-header {
+        flex-direction: column;
+        gap: 15px;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .user-stats {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .user-stats .nav-btn {
+        margin: 0 !important;
+        font-size: 0.8rem;
+    }
+
+    .battle-stage {
+        flex-direction: column;
+        padding: 20px 10px;
+    }
+
+    .vs-overlay {
+        position: relative;
+        left: 0;
+        top: 0;
+        transform: none;
+        margin: 10px 0;
+        font-size: 3rem;
+    }
+
+    .fighter-card {
+        width: 100%;
+        padding: 10px;
+    }
+    
+    .fighter-img {
+        width: 100px;
+        height: 100px;
+    }
+
+    .combat-zone {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+    }
+
+    .seed-container.compact {
+        width: 100%;
+    }
+
+    #fighters-grid.cyber-grid {
+        grid-template-columns: 1fr !important;
+        overflow-y: auto !important;
+        max-height: 500px;
+    }
+    
+    .cyber-card {
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        text-align: left;
+    }
+    
+    .card-img-wrapper {
+        width: 60px !important;
+        height: 60px !important;
+        margin-bottom: 0 !important;
+        margin-right: 15px;
+    }
+    
+    .card-info {
+        text-align: left;
+    }
+    
+    .deck-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .neon-title {
+        font-size: 1.5rem !important;
+    }
+    
+    .credits-chip {
+        font-size: 0.9rem;
+        padding: 5px 10px;
+    }
+    
+    .dice-container {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .face {
+        font-size: 20px;
+    }
+}
