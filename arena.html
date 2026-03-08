@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KillPollo — P2P Arena</title>
+    <meta name="description" content="P2P combat arena — bring your own tokens and fight for glory.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="arena.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="logo">
+                <span class="icon">⚔️</span>
+                <h1 class="neon-title" style="margin:0; font-size:1.6em;">
+                    P2P <span class="highlight">Arena</span>
+                </h1>
+            </div>
+            <div class="user-stats">
+                <button class="nav-btn" onclick="window.location.href='game.html'"
+                    style="width:auto; padding:5px 15px; border-radius:20px; margin-right:10px; background:rgba(0,0,0,0.3); color:#39ff14; font-weight:bold;">
+                    🎮 Solo Game
+                </button>
+                <button class="nav-btn" onclick="window.location.href='leaderboard.html'"
+                    style="width:auto; padding:5px 15px; border-radius:20px; margin-right:10px; background:rgba(0,0,0,0.3); color:#39ff14; font-weight:bold;">
+                    🏆 Leaderboard
+                </button>
+                <button class="nav-btn" onclick="window.location.href='store.html'"
+                    style="width:auto; padding:5px 15px; border-radius:20px; margin-right:10px; background:rgba(0,0,0,0.3); color:#39ff14; font-weight:bold;">
+                    🛒 Store
+                </button>
+
+                <!-- Wallet Connection -->
+                <button id="connect-wallet-btn" class="wallet-connect-btn">
+                    🔌 Connect Wallet
+                </button>
+                <div id="wallet-info" class="wallet-info hidden">
+                    <span class="wallet-dot"></span>
+                    <span id="wallet-address" class="wallet-addr"></span>
+                    <button class="wallet-disconnect" onclick="wallet.disconnect()">✕</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="arena-main">
+            <!-- Arena Stats Bar -->
+            <div class="arena-stats-bar glass-panel">
+                <div class="arena-stat">
+                    <span class="stat-label">🔥 Open Fights</span>
+                    <span id="fight-count" class="stat-value">0</span>
+                </div>
+                <div class="arena-stat">
+                    <span class="stat-label">⚡ Fee</span>
+                    <span class="stat-value">3%</span>
+                </div>
+                <div class="arena-stat">
+                    <span class="stat-label">🏆 Winner Takes All</span>
+                    <span class="stat-value" style="color:#39ff14;">97%</span>
+                </div>
+                <button id="open-create-fight" class="create-fight-btn">
+                    + CREATE FIGHT
+                </button>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="arena-filters">
+                <button class="filter-btn active" data-filter="all">All Fights</button>
+                <button class="filter-btn" data-filter="waiting">⏳ Waiting</button>
+                <button class="filter-btn" data-filter="active">⚔️ Active</button>
+            </div>
+
+            <!-- Fights List -->
+            <div id="fights-list" class="fights-list">
+                <div class="empty-lobby">
+                    <span class="empty-icon">⚔️</span>
+                    <p>Loading fights...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- CREATE FIGHT MODAL -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div id="create-fight-modal" class="arena-modal-overlay hidden">
+        <div class="arena-modal glass-panel">
+            <button id="close-create-modal" class="modal-close-btn">✕</button>
+            <h2 id="create-modal-title" class="modal-title">⚔️ CREATE A FIGHT</h2>
+
+            <!-- Step 1: Select Fighter -->
+            <div class="modal-section">
+                <label class="modal-label">Select Your Fighter</label>
+                <div class="arena-fighter-controls">
+                    <button id="arena-shuffle" class="icon-btn">🎲</button>
+                    <div class="arena-fighter-nav">
+                        <button id="arena-prev-fighter" class="nav-btn-sm">‹</button>
+                        <span id="arena-fighter-page" class="page-sm">1/2500</span>
+                        <button id="arena-next-fighter" class="nav-btn-sm">›</button>
+                    </div>
+                </div>
+                <div id="arena-fighter-grid" class="arena-fighter-grid">
+                    <!-- Fighters injected -->
+                </div>
+                <div id="selected-fighter-preview" class="fighter-preview">
+                    <span style="color:#666;">Click a fighter to select</span>
+                </div>
+            </div>
+
+            <!-- Step 2: Token (Hidden for MVP, SOL Only) -->
+            <div id="token-select-section" class="modal-section" style="display: none;">
+                <label class="modal-label">Token to Bet</label>
+                <div class="token-input-row">
+                    <input type="text" id="token-symbol-input" value="SOL" placeholder="Token symbol"
+                        class="arena-input token-input">
+                </div>
+                <!-- 
+                <div class="popular-tokens">
+                    <span class="pop-label">Popular:</span>
+                    <button class="token-chip" onclick="document.getElementById('token-symbol-input').value='SOL'">SOL</button>
+                    <button class="token-chip" onclick="document.getElementById('token-symbol-input').value='BONK'">BONK</button>
+                </div>
+                -->
+            </div>
+
+            <!-- Step 3: Amount -->
+            <div id="bet-section" class="modal-section">
+                <label class="modal-label">Bet Amount</label>
+                <div class="bet-input-row">
+                    <input type="number" id="arena-bet-amount" value="0.1" min="0.001" step="0.01"
+                        class="arena-input bet-input">
+                    <span class="bet-token-tag" id="bet-token-tag">SOL</span>
+                </div>
+                <div class="fee-info">
+                    <span>Fee (3%): <strong id="fee-display">0.006</strong></span>
+                    <span>Winner gets: <strong id="payout-display" style="color:#39ff14;">0.194</strong></span>
+                </div>
+            </div>
+
+            <!-- Join info (hidden by default, shown when joining) -->
+            <div id="join-info" class="modal-section hidden"></div>
+
+            <!-- Confirm -->
+            <button id="confirm-create-fight" class="mega-btn create-confirm-btn">
+                ⚔️ CREATE FIGHT
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/metadata.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="wallet_adapter.js"></script>
+    <script src="arena.js"></script>
+</body>
+
+</html>

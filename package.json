@@ -6,9 +6,10 @@
   "dependencies": {
     "@solana/web3.js": "^1.78.0",
     "@supabase/supabase-js": "^2.39.0",
+    "bs58": "^6.0.0",
     "node-fetch": "^3.3.2",
-    "uuid": "^9.0.1",
-    "qrcode": "^1.5.3"
+    "qrcode": "^1.5.3",
+    "uuid": "^9.0.1"
   },
   "scripts": {
     "start": "node api/index.js"

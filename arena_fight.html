@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KillPollo — P2P Fight!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="arena.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+    <div class="app-container">
+
+        <!-- Compact Header -->
+        <header class="glass-header" style="padding: 10px 20px;">
+            <div class="logo">
+                <span class="icon">⚔️</span>
+                <h1 class="neon-title" style="margin:0; font-size:1.4em;">P2P <span class="highlight">FIGHT</span></h1>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span id="round-display" class="round-badge">Round 1</span>
+                <div id="turn-indicator" class="turn-indicator their-turn">⏳ LOADING...</div>
+            </div>
+        </header>
+
+        <!-- Bet Info Bar -->
+        <div class="p2p-bet-bar glass-panel">
+            <span id="p2p-bet-info">Loading fight...</span>
+        </div>
+
+        <!-- Battle Stage -->
+        <main class="p2p-battle-stage">
+            <!-- Player Side -->
+            <div class="p2p-fighter-side" id="p2p-player-side">
+                <div class="p2p-fighter-label you-label">YOU</div>
+                <div class="p2p-fighter-card">
+                    <img id="p2p-player-img" src="" alt="Your Fighter" class="p2p-fighter-img">
+                    <h4 id="p2p-player-name" class="p2p-fighter-name">—</h4>
+                </div>
+                <div class="p2p-hp-container">
+                    <div class="p2p-hp-label">HP: <span id="p2p-player-hp-text">100/100</span></div>
+                    <div class="p2p-hp-bar-bg">
+                        <div id="p2p-player-hp-bar" class="p2p-hp-fill" style="width:100%; background:#39ff14;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VS Center -->
+            <div class="p2p-vs-center">
+                <div class="p2p-vs-text">VS</div>
+
+                <!-- Dice -->
+                <div class="p2p-dice-wrapper">
+                    <div id="p2p-dice" class="p2p-dice">
+                        <div class="face front">1</div>
+                        <div class="face back">6</div>
+                        <div class="face right">3</div>
+                        <div class="face left">4</div>
+                        <div class="face top">2</div>
+                        <div class="face bottom">5</div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="p2p-controls">
+                    <div class="p2p-predict-label">PREDICT THE ROLL</div>
+                    <div class="p2p-btn-group">
+                        <button id="p2p-btn-low" class="combat-btn btn-low" disabled>LOW (1-3)</button>
+                        <button id="p2p-btn-high" class="combat-btn btn-high" disabled>HIGH (4-6)</button>
+                    </div>
+                </div>
+
+                <!-- Battle Log -->
+                <div id="p2p-battle-log" class="p2p-battle-log">Connecting to fight...</div>
+
+                <!-- Seeds -->
+                <div class="p2p-seeds">
+                    <div class="p2p-seed-row">
+                        <label>Server Seed:</label>
+                        <input type="text" id="p2p-server-seed" class="seed-input" readonly value="????????????????">
+                    </div>
+                    <div class="p2p-seed-row">
+                        <label>Your Seed:</label>
+                        <input type="text" id="p2p-client-seed" class="seed-input" placeholder="your hex seed...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Opponent Side -->
+            <div class="p2p-fighter-side" id="p2p-opponent-side">
+                <div class="p2p-fighter-label opp-label">ENEMY</div>
+                <div class="p2p-fighter-card">
+                    <img id="p2p-opponent-img" src="" alt="Opponent" class="p2p-fighter-img">
+                    <h4 id="p2p-opponent-name" class="p2p-fighter-name">—</h4>
+                </div>
+                <div class="p2p-hp-container">
+                    <div class="p2p-hp-label">HP: <span id="p2p-opponent-hp-text">100/100</span></div>
+                    <div class="p2p-hp-bar-bg">
+                        <div id="p2p-opponent-hp-bar" class="p2p-hp-fill" style="width:100%; background:#ff073a;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Result Overlay (Hidden) -->
+        <div id="p2p-result-overlay" class="p2p-result-overlay hidden">
+            <div class="p2p-result-box glass-panel">
+                <h1 id="p2p-result-title" class="p2p-result-title">—</h1>
+                <p id="p2p-result-message" class="p2p-result-msg">—</p>
+                <button class="mega-btn" onclick="window.location.href='arena.html'"
+                    style="margin-top:20px;">
+                    ← Back to Arena
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="wallet_adapter.js"></script>
+    <script src="arena_combat.js"></script>
+</body>
+
+</html>
