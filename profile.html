@@ -179,9 +179,9 @@
         </main>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js?v=prof1"></script>
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js?v=prof1"></script>
     <script src="lang.js?v=prof1"></script>
     <script>
@@ -191,20 +191,25 @@
             const user = auth.getCurrentUser();
             if (!user) return; // Should redirect in requireAuth
 
-            // Fill basic info from local session first
-            document.getElementById('p-username').textContent = user.username;
+            // Fill basic info from local session
+            const displayName = user.wallet_address 
+                ? user.wallet_address.slice(0, 6) + '...' + user.wallet_address.slice(-6)
+                : (user.username || 'Unknown');
+            document.getElementById('p-username').textContent = displayName;
             document.getElementById('p-credits').textContent = user.credits.toLocaleString();
 
-            // Fetch detailed info from DB (creation date, etc)
+            // Fetch detailed info from DB
             const { data, error } = await supabase
                 .from('game_users')
                 .select('*')
-                .eq('username', user.username)
+                .eq('id', user.id)
                 .single();
 
             if (data) {
-                document.getElementById('p-id').textContent = `ID: ${data.id}`;
-                document.getElementById('p-credits').textContent = data.credits.toLocaleString(); // Sync latest
+                document.getElementById('p-id').textContent = data.wallet_address 
+                    ? `Wallet: ${data.wallet_address.slice(0, 8)}...${data.wallet_address.slice(-8)}`
+                    : `ID: ${data.id}`;
+                document.getElementById('p-credits').textContent = data.credits.toLocaleString();
 
                 const date = new Date(data.created_at);
                 document.getElementById('p-joined').textContent = date.toLocaleDateString();

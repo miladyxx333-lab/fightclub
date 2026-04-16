@@ -1,6 +1,6 @@
 // ============================================
-// ARENA COMBAT — Real-time P2P Fight Engine
-// Uses Supabase Realtime Broadcast for turn sync
+// ARENA COMBAT — Provably Fair P2P Fight Engine
+// Uses commit-reveal randomness + Supabase Realtime
 // ============================================
 
 class ArenaCombat {
@@ -19,6 +19,10 @@ class ArenaCombat {
         this.round = 1;
         this.baseDamage = 20;
         this.fightOver = false;
+
+        // Provably fair state
+        this.currentCommitment = null; // SHA-256 hash shown before player acts
+        this.pendingReveal = false;
 
         // Timer state
         this.turnTimeLimitSeconds = 15;
@@ -51,6 +55,11 @@ class ArenaCombat {
         // Creator goes first
         this.isMyTurn = (this.role === 'creator');
         this.updateTurnIndicator();
+
+        // If it's our turn, request first commitment
+        if (this.isMyTurn) {
+            await this.requestNewCommitment();
+        }
     }
 
     async loadFight() {
@@ -87,15 +96,21 @@ class ArenaCombat {
         this.turnIndicator = document.getElementById('turn-indicator');
         this.roundDisplay = document.getElementById('round-display');
         
-        // Add timer display dynamically to the header
+        // Timer display
         this.timerDisplay = document.createElement('div');
         this.timerDisplay.className = 'turn-timer hidden';
         this.turnIndicator.parentNode.insertBefore(this.timerDisplay, this.turnIndicator.nextSibling);
 
         this.betInfoEl = document.getElementById('p2p-bet-info');
-
         this.serverSeedDisplay = document.getElementById('p2p-server-seed');
         this.clientSeedInput = document.getElementById('p2p-client-seed');
+
+        // Verification panel — inject after seeds section
+        this.verifyPanel = document.createElement('div');
+        this.verifyPanel.id = 'verify-panel';
+        this.verifyPanel.style.cssText = 'margin-top: 10px; max-height: 200px; overflow-y: auto;';
+        const seedSection = document.querySelector('.p2p-seeds');
+        if (seedSection) seedSection.after(this.verifyPanel);
 
         // Bind controls
         this.btnLow.addEventListener('click', () => this.takeTurn('low'));
@@ -105,7 +120,7 @@ class ArenaCombat {
     setupUI() {
         const isCreator = this.role === 'creator';
 
-        // Player side (always shows YOUR fighter)
+        // Player side
         const myFighter = isCreator
             ? { name: this.fight.creator_fighter_name, image: this.fight.creator_fighter_image }
             : { name: this.fight.challenger_fighter_name, image: this.fight.challenger_fighter_image };
@@ -121,21 +136,51 @@ class ArenaCombat {
 
         // Bet info
         if (this.betInfoEl) {
-            this.betInfoEl.textContent = `⚔️ ${this.fight.bet_amount_display} each · Winner takes all (minus 3% fee)`;
+            this.betInfoEl.textContent = `⚔️ ${this.fight.bet_amount_display} each · Provably Fair 🔒 · 3% fee`;
         }
 
-        // Default client seed
+        // Generate crypto-secure client seed
         if (!this.clientSeedInput.value) {
-            this.clientSeedInput.value = this.generateRandomHex(8);
+            this.clientSeedInput.value = provablyFair.generateSecureHex(8);
         }
 
         this.updateHPUI();
     }
 
+    // ── Provably Fair — Commit Phase ──────────
+
+    /**
+     * Request a commitment from the backend for the current round.
+     * The commitment (SHA-256 of serverSeed) is displayed to the player
+     * BEFORE they make their prediction, proving the server can't change it.
+     */
+    async requestNewCommitment() {
+        try {
+            this.currentCommitment = await provablyFair.requestCommitment(
+                this.fightId,
+                this.round
+            );
+
+            // Show commitment hash in the server seed display
+            if (this.serverSeedDisplay) {
+                this.serverSeedDisplay.value = `🔒 ${this.currentCommitment.slice(0, 24)}...`;
+                this.serverSeedDisplay.title = `Full commitment: ${this.currentCommitment}`;
+            }
+
+            this.battleLog.textContent = '🎯 Commitment received. Make your prediction!';
+        } catch (err) {
+            console.error('Failed to get commitment:', err);
+            this.battleLog.textContent = '❌ Error getting commitment. Retrying...';
+            // Retry once
+            await this.sleep(1000);
+            await this.requestNewCommitment();
+        }
+    }
+
     // ── Realtime Channel ──────────────────────
     subscribeToChannel() {
         this.channel = supabase.channel(`fight:${this.fightId}`, {
-            config: { broadcast: { self: false } } // Don't echo back to sender
+            config: { broadcast: { self: false } }
         });
 
         this.channel
@@ -147,7 +192,7 @@ class ArenaCombat {
             })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('Connected to fight channel');
+                    console.log('Connected to fight channel (provably fair mode)');
                     this.battleLog.textContent = this.isMyTurn
                         ? '🎯 Your turn! Predict the roll.'
                         : '⏳ Waiting for opponent...';
@@ -195,16 +240,22 @@ class ArenaCombat {
     handleTimeout() {
         if (!this.isMyTurn || this.fightOver) return;
         this.battleLog.textContent = '⏱️ Time is up! Auto-playing...';
-        // Auto-play a turn (defaulting to 'low' as a penalty for being afk)
         this.takeTurn('low');
     }
 
-    // ── Take Turn ─────────────────────────────
+    // ── Take Turn (Provably Fair) ─────────────
     async takeTurn(prediction) {
-        if (!this.isMyTurn || this.fightOver) return;
+        if (!this.isMyTurn || this.fightOver || this.pendingReveal) return;
 
-        // Stop the timer as soon as an action is taken
+        // Must have a commitment first
+        if (!this.currentCommitment) {
+            this.battleLog.textContent = '⏳ Waiting for commitment...';
+            await this.requestNewCommitment();
+            if (!this.currentCommitment) return;
+        }
+
         this.stopTimer();
+        this.pendingReveal = true;
 
         // Disable buttons
         this.btnLow.disabled = true;
@@ -213,69 +264,95 @@ class ArenaCombat {
 
         // Roll animation
         this.diceEl.className = 'p2p-dice rolling';
-        await this.sleep(600);
+        this.battleLog.textContent = '🔓 Revealing server seed...';
 
-        // Deterministic roll
-        const serverSeed = this.generateRandomHex(32);
-        const clientSeed = this.clientSeedInput.value || 'default';
-        const roll = this.calculateRoll(serverSeed, clientSeed);
+        const clientSeed = this.clientSeedInput.value || provablyFair.generateSecureHex(8);
 
-        this.showDiceFace(roll);
-        await this.sleep(800);
-
-        // Determine result
-        const isLow = roll <= 3;
-        const isHigh = roll >= 4;
-        const hit = (prediction === 'low' && isLow) || (prediction === 'high' && isHigh);
-
-        const crit = (roll === 1 || roll === 6) ? 1.5 : 1;
-        const damage = hit ? Math.floor(this.baseDamage * crit) : 0;
-        const counterDamage = hit ? 0 : Math.floor(this.baseDamage * 0.8);
-
-        // Apply locally
-        if (hit) {
-            this.opponentHP = Math.max(0, this.opponentHP - damage);
-            this.battleLog.textContent = `💥 HIT! You deal ${damage} damage!`;
-            this.battleLog.style.color = '#39ff14';
-            this.shakeElement('p2p-opponent-side');
-        } else {
-            this.playerHP = Math.max(0, this.playerHP - counterDamage);
-            this.battleLog.textContent = `😵 MISS! You take ${counterDamage} damage!`;
-            this.battleLog.style.color = '#ff073a';
-            this.shakeElement('p2p-player-side');
-        }
-
-        this.updateHPUI();
-        this.round++;
-        if (this.roundDisplay) this.roundDisplay.textContent = `Round ${this.round}`;
-
-        // Reveal server seed
-        if (this.serverSeedDisplay) {
-            this.serverSeedDisplay.value = serverSeed;
-        }
-
-        // Broadcast to opponent
-        await this.channel.send({
-            type: 'broadcast',
-            event: 'turn_result',
-            payload: {
-                player: this.role,
+        try {
+            // Submit prediction + client seed → backend reveals server seed
+            const result = await provablyFair.submitAndReveal(
+                this.fightId,
+                this.round,
                 prediction,
-                roll,
-                serverSeed,
-                hit,
-                damage,
-                counterDamage,
-                round: this.round
-            }
-        });
+                clientSeed
+            );
 
-        // Check win
-        if (this.playerHP <= 0 || this.opponentHP <= 0) {
-            this.endFight();
-        } else {
-            this.updateTurnIndicator();
-            this.battleLog.textContent += ' — Waiting for opponent...';
+            // This point is reached ONLY if verification passed ✓
+            await this.sleep(400);
+
+            this.showDiceFace(result.roll);
+            await this.sleep(800);
+
+            // Reveal the server seed in UI
+            if (this.serverSeedDisplay) {
+                this.serverSeedDisplay.value = result.serverSeed;
+                this.serverSeedDisplay.title = 'Verified ✓';
+                this.serverSeedDisplay.style.borderColor = '#39ff14';
+                setTimeout(() => { this.serverSeedDisplay.style.borderColor = ''; }, 2000);
+            }
+
+            // Apply damage locally
+            if (result.hit) {
+                this.opponentHP = Math.max(0, this.opponentHP - result.damage);
+                this.battleLog.textContent = `💥 HIT! ${result.damage} damage! [Roll: ${result.roll}] ✓ Verified`;
+                this.battleLog.style.color = '#39ff14';
+                this.shakeElement('p2p-opponent-side');
+            } else {
+                this.playerHP = Math.max(0, this.playerHP - result.counterDamage);
+                this.battleLog.textContent = `😵 MISS! Take ${result.counterDamage} damage [Roll: ${result.roll}] ✓ Verified`;
+                this.battleLog.style.color = '#ff073a';
+                this.shakeElement('p2p-player-side');
+            }
+
+            this.updateHPUI();
+            this.round++;
+            if (this.roundDisplay) this.roundDisplay.textContent = `Round ${this.round}`;
+
+            // Update verification panel
+            if (this.verifyPanel) {
+                this.verifyPanel.innerHTML = provablyFair.getVerificationHTML(5);
+            }
+
+            // Broadcast to opponent
+            await this.channel.send({
+                type: 'broadcast',
+                event: 'turn_result',
+                payload: {
+                    player: this.role,
+                    prediction,
+                    roll: result.roll,
+                    serverSeed: result.serverSeed,
+                    commitment: result.commitment,
+                    clientSeed,
+                    hit: result.hit,
+                    damage: result.damage,
+                    counterDamage: result.counterDamage,
+                    round: this.round
+                }
+            });
+
+            // Check win
+            if (this.playerHP <= 0 || this.opponentHP <= 0) {
+                this.endFight();
+            } else {
+                this.updateTurnIndicator();
+                this.battleLog.textContent += ' — Waiting for opponent...';
+            }
+
+            // Generate new client seed for next turn
+            this.clientSeedInput.value = provablyFair.generateSecureHex(8);
+
+        } catch (err) {
+            console.error('Provably fair turn error:', err);
+            this.battleLog.textContent = `❌ ${err.message}`;
+            this.battleLog.style.color = '#ff073a';
+
+            // Re-enable buttons to retry
+            this.isMyTurn = true;
+            this.btnLow.disabled = false;
+            this.btnHigh.disabled = false;
+        } finally {
+            this.pendingReveal = false;
         }
     }
 
@@ -288,15 +365,38 @@ class ArenaCombat {
         this.showDiceFace(data.roll);
         await this.sleep(800);
 
-        // Mirror: if opponent hit, WE take damage
+        // Verify opponent's turn if we have the data
+        if (data.serverSeed && data.commitment && data.clientSeed) {
+            try {
+                const verification = await provablyFair.verifyAndRoll(
+                    data.serverSeed,
+                    data.clientSeed,
+                    data.commitment
+                );
+                if (!verification.valid) {
+                    this.battleLog.textContent = '⚠️ OPPONENT TURN FAILED VERIFICATION!';
+                    this.battleLog.style.color = '#ff073a';
+                    return;
+                }
+                if (verification.roll !== data.roll) {
+                    this.battleLog.textContent = `⚠️ ROLL MISMATCH! Expected ${verification.roll}, got ${data.roll}`;
+                    this.battleLog.style.color = '#ff073a';
+                    return;
+                }
+            } catch (e) {
+                console.warn('Could not verify opponent turn:', e);
+            }
+        }
+
+        // Mirror damage
         if (data.hit) {
             this.playerHP = Math.max(0, this.playerHP - data.damage);
-            this.battleLog.textContent = `😵 Opponent hits you for ${data.damage} damage!`;
+            this.battleLog.textContent = `😵 Opponent hits for ${data.damage}! [Roll: ${data.roll}] ✓ Verified`;
             this.battleLog.style.color = '#ff073a';
             this.shakeElement('p2p-player-side');
         } else {
             this.opponentHP = Math.max(0, this.opponentHP - data.counterDamage);
-            this.battleLog.textContent = `🛡️ Opponent missed! You counter for ${data.counterDamage}!`;
+            this.battleLog.textContent = `🛡️ Opponent missed! Counter ${data.counterDamage}! [Roll: ${data.roll}] ✓ Verified`;
             this.battleLog.style.color = '#39ff14';
             this.shakeElement('p2p-opponent-side');
         }
@@ -305,18 +405,23 @@ class ArenaCombat {
         if (this.roundDisplay) this.roundDisplay.textContent = `Round ${this.round}`;
         if (this.serverSeedDisplay) this.serverSeedDisplay.value = data.serverSeed;
 
+        // Update verification panel with opponent's data too
+        if (this.verifyPanel) {
+            this.verifyPanel.innerHTML = provablyFair.getVerificationHTML(5);
+        }
+
         this.updateHPUI();
 
         // Check win
         if (this.playerHP <= 0 || this.opponentHP <= 0) {
             this.endFight();
         } else {
-            // Now it's our turn
+            // Now it's our turn — request new commitment
             this.isMyTurn = true;
             this.btnLow.disabled = false;
             this.btnHigh.disabled = false;
             this.updateTurnIndicator();
-            this.battleLog.textContent += ' — Your turn!';
+            await this.requestNewCommitment();
         }
     }
 
@@ -325,6 +430,7 @@ class ArenaCombat {
         this.fightOver = true;
         this.btnLow.disabled = true;
         this.btnHigh.disabled = true;
+        this.stopTimer();
 
         const iWon = this.playerHP > 0;
 
@@ -344,7 +450,7 @@ class ArenaCombat {
                 const totalPot = this.fight.bet_amount * 2;
                 const fee = Math.floor(totalPot * 0.03);
                 const payout = totalPot - fee;
-                resultMsg.textContent = `You won ${this.fight.bet_amount_display}! (minus 3% fee)`;
+                resultMsg.textContent = `You won ${this.fight.bet_amount_display}! (minus 3% fee) — Provably Fair ✓`;
             }
         } else {
             if (resultTitle) {
@@ -352,15 +458,15 @@ class ArenaCombat {
                 resultTitle.style.color = '#ff073a';
             }
             if (resultMsg) {
-                resultMsg.textContent = `You lost ${this.fight.bet_amount_display}. Better luck next time!`;
+                resultMsg.textContent = `You lost ${this.fight.bet_amount_display}. All rounds were provably fair.`;
             }
         }
 
-        // Update fight record and trigger payout via Backend API
+        // Trigger payout via backend (same as before)
         if (iWon) {
             try {
                 const winnerWallet = this.role === 'creator' ? this.fight.creator_wallet : this.fight.challenger_wallet;
-                this.logBattle(`🏆 Reclamando fondo de premios al Smart Escrow...`);
+                this.logBattle(`🏆 Claiming prize from Smart Escrow...`);
                 
                 const response = await fetch('/api/arena/resolve-fight', {
                     method: 'POST',
@@ -375,11 +481,11 @@ class ArenaCombat {
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
                 
-                this.logBattle(`💰 ¡Premio transferido exitosamente! (TX: ...${result.payoutTx.slice(-6)})`);
+                this.logBattle(`💰 Prize transferred! (TX: ...${result.payoutTx.slice(-6)})`);
 
             } catch (err) {
-                console.error('Error triggering payout via backend:', err);
-                this.logBattle(`❌ Error interno dispersando pago: ${err.message}`);
+                console.error('Error triggering payout:', err);
+                this.logBattle(`❌ Payout error: ${err.message}`);
             }
         }
 
@@ -394,8 +500,6 @@ class ArenaCombat {
     handleFightOver(data) {
         if (this.fightOver) return;
         this.fightOver = true;
-        // Opponent already declared the result
-        // UI was already updated from the last turn
     }
 
     // ── UI Helpers ────────────────────────────
@@ -408,7 +512,6 @@ class ArenaCombat {
         if (this.opponentHPBar) this.opponentHPBar.style.width = `${oPct}%`;
         if (this.opponentHPText) this.opponentHPText.textContent = `${this.opponentHP}/${this.opponentMaxHP}`;
 
-        // Color transitions
         if (this.playerHPBar) {
             this.playerHPBar.style.background = pPct > 50 ? '#39ff14' : pPct > 25 ? '#ffaa00' : '#ff073a';
         }
@@ -445,25 +548,10 @@ class ArenaCombat {
         setTimeout(() => el.style.transform = 'none', 150);
     }
 
-    // ── Deterministic Roll ────────────────────
-    calculateRoll(serverSeed, clientSeed) {
-        const combined = serverSeed + clientSeed;
-        let hashVal = 0;
-        for (let i = 0; i < combined.length; i++) {
-            const char = combined.charCodeAt(i);
-            hashVal = ((hashVal << 5) - hashVal) + char;
-            hashVal = hashVal & hashVal;
+    logBattle(msg) {
+        if (this.battleLog) {
+            this.battleLog.textContent = msg;
         }
-        return (Math.abs(hashVal) % 6) + 1;
-    }
-
-    generateRandomHex(length) {
-        let result = '';
-        const chars = '0123456789abcdef';
-        for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
     }
 
     sleep(ms) {

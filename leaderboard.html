@@ -127,6 +127,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js?v=board1"></script>
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js?v=board1"></script>
     <script src="lang.js?v=board1"></script>
     <script>
@@ -146,7 +147,7 @@
             // Fetch from Supabase
             const { data: users, error } = await supabase
                 .from('game_users')
-                .select('username, credits')
+                .select('id, username, wallet_address, credits')
                 .order('credits', { ascending: false })
                 .limit(100);
 
@@ -169,8 +170,12 @@
                 const rank = index + 1;
                 const tr = document.createElement('tr');
 
-                // Highlight logged in user
-                if (currentUser && user.username === currentUser.username) {
+                // Highlight logged in user (by ID or wallet)
+                const isCurrentUser = currentUser && (
+                    user.id === currentUser.id ||
+                    (user.wallet_address && user.wallet_address === currentUser.wallet_address)
+                );
+                if (isCurrentUser) {
                     tr.classList.add('user-highlight');
                 }
 
@@ -185,11 +190,17 @@
                 if (rank === 2) rankDisplay = '🥈';
                 if (rank === 3) rankDisplay = '🥉';
 
+                // Display name: short wallet if available, else username
+                let displayName = user.username || '???';
+                if (user.wallet_address) {
+                    displayName = user.wallet_address.slice(0, 4) + '...' + user.wallet_address.slice(-4);
+                }
+
                 tr.innerHTML = `
                      <td class="${rankClass}">${rankDisplay}</td>
                      <td style="font-weight: 500;">
-                         ${user.username} 
-                         ${currentUser && user.username === currentUser.username ? '<span style="color:var(--primary); font-size:0.8em; margin-left:5px;">(Tú)</span>' : ''}
+                         ${displayName} 
+                         ${isCurrentUser ? '<span style="color:var(--primary); font-size:0.8em; margin-left:5px;">(Tú)</span>' : ''}
                      </td>
                      <td class="credits-val">${user.credits.toLocaleString()}</td>
                  `;

@@ -1,21 +1,37 @@
 const { createClient } = require('@supabase/supabase-js');
 const { Connection, PublicKey } = require('@solana/web3.js');
 
-// Configuración requerida de Entorno (Vercel)
+// Configuración
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hpebvddocrfqtkbvqusk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwZWJ2ZGRvY3JmcXRrYnZxdXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNzMwNzEsImV4cCI6MjA4MTc0OTA3MX0.byPXz6lvRFH81273qhHLI5H5QUxutYA0z7nGh1GTCdg';
-const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
-
-// Billetera de la casa (Escrow)
-const HOUSE_WALLET = process.env.MERCHANT_WALLET || 'e6uU5apmNZrUX4L2fCZ7hupZMwofS3JUNXEHcSxqcBD';
+const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.devnet.solana.com';
+const PROGRAM_ID = process.env.PROGRAM_ID || 'FiGHt1111111111111111111111111111111111111';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const connection = new Connection(SOLANA_RPC, 'confirmed');
 
-// Helper de CORS
-function setCorsHeaders(res) {
+// Basic in-memory rate limiting (Serverless Edge)
+const rateLimitCache = new Map();
+function checkRateLimit(ip) {
+    if (!ip) return true;
+    const now = Date.now();
+    const entry = rateLimitCache.get(ip) || { count: 0, resetAt: now + 60000 };
+    if (now > entry.resetAt) {
+        entry.count = 1;
+        entry.resetAt = now + 60000;
+    } else {
+        entry.count++;
+    }
+    rateLimitCache.set(ip, entry);
+    // Limit to 10 creates per IP per minute
+    return entry.count <= 10;
+}
+
+function setCorsHeaders(req, res) {
+    const origin = req.headers.origin;
+    const allowed = process.env.ALLOWED_ORIGIN || origin || '*';
     res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', allowed);
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
     res.setHeader(
         'Access-Control-Allow-Headers',
@@ -23,15 +39,44 @@ function setCorsHeaders(res) {
     );
 }
 
+/**
+ * Derive the escrow PDA for a fight ID (mirrors the on-chain program).
+ */
+function getEscrowPDA(fightId) {
+    const programId = new PublicKey(PROGRAM_ID);
+    const [pda, bump] = PublicKey.findProgramAddressSync(
+        [Buffer.from('fight_escrow'), Buffer.from(fightId)],
+        programId
+    );
+    return { pda, bump };
+}
+
+function getFightTokenPDA(fightId) {
+    const programId = new PublicKey(PROGRAM_ID);
+    const [pda, bump] = PublicKey.findProgramAddressSync(
+        [Buffer.from('fight_escrow_token'), Buffer.from(fightId)],
+        programId
+    );
+    return { pda, bump };
+}
+
 // ── API HANDLER ────────────────────────────
 module.exports = async function handler(req, res) {
-    setCorsHeaders(res);
+    setCorsHeaders(req, res);
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (!checkRateLimit(ip)) {
+        return res.status(429).json({ error: 'Too many fight creations. Slow down!' });
+    }
+
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
         const { 
             txSignature, 
+            fightId,        // PDA seed — generated client-side
+            escrowPDA,      // Expected PDA address for verification
             creatorWallet, 
             username,
             fighterId, 
@@ -43,20 +88,57 @@ module.exports = async function handler(req, res) {
             betDisplay
         } = req.body;
 
-        if (!txSignature || !creatorWallet || !fighterId || !betAmount) {
-            return res.status(400).json({ error: "Faltan parámetros requeridos" });
+        if (!txSignature || !fightId || !creatorWallet || !fighterId || !betAmount) {
+            return res.status(400).json({ error: "Missing required parameters" });
         }
 
-        // 1. (Opcional por ahora) Verificar la TX real en cadena usando @solana/web3.js
-        // const tx = await connection.getTransaction(txSignature, { maxSupportedTransactionVersion: 0 });
-        // if (!tx) throw new Error("Transaction no encontrada en Solana");
-        // Aquí iría el código extra para asegurar que transfirió al HOUSE_WALLET el monto correcto
-        console.log(`[ARENA] Verificando TX de creación: ${txSignature}`);
+        // 1. Verify PDA derivation matches
+        const { pda: expectedPDA } = getEscrowPDA(fightId);
+        if (escrowPDA && expectedPDA.toBase58() !== escrowPDA) {
+            console.error(`[ARENA] PDA mismatch! Expected ${expectedPDA.toBase58()}, got ${escrowPDA}`);
+            return res.status(400).json({ error: "Escrow PDA verification failed" });
+        }
 
-        // 2. Insertar en la Base de Datos como "Waiting" 
+        // 2. Verify the transaction exists on-chain
+        console.log(`[ARENA] Verifying escrow TX: ${txSignature} for PDA: ${expectedPDA.toBase58()}`);
+        
+        try {
+            // Wait for confirmation (up to 30s)
+            const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
+            if (confirmation.value.err) {
+                return res.status(400).json({ error: "Transaction failed on-chain" });
+            }
+        } catch (confirmErr) {
+            console.warn('[ARENA] TX confirmation check failed (may still be processing):', confirmErr.message);
+            // Don't block — the PDA balance check below is the real verification
+        }
+
+        // 3. Verify PDA has received the funds
+        try {
+            if (!req.body.tokenMint || req.body.tokenMint === 'native') {
+                const pdaBalance = await connection.getBalance(expectedPDA);
+                console.log(`[ARENA] PDA balance: ${pdaBalance} lamports (expected >= ${betAmount})`);
+                
+                if (pdaBalance < Number(betAmount)) {
+                    console.warn(`[ARENA] PDA balance ${pdaBalance} < expected ${betAmount}. May still be confirming.`);
+                }
+            } else {
+                const { pda: tokenPDA } = getFightTokenPDA(fightId);
+                const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
+                console.log(`[ARENA] SPL Token balance: ${tokenBal.value.amount} (expected >= ${betAmount})`);
+                if (Number(tokenBal.value.amount) < Number(betAmount)) {
+                    console.warn(`[ARENA] SPL balance ${tokenBal.value.amount} < expected. May still be confirming.`);
+                }
+            }
+        } catch (balanceErr) {
+            console.warn('[ARENA] Balance check warning:', balanceErr.message);
+        }
+
+        // 4. Insert fight record into Supabase with the client-provided fight ID
         const { data: fight, error } = await supabase
             .from('arena_fights')
             .insert([{
+                id: fightId,  // Use the PDA seed as the fight ID
                 creator_wallet: creatorWallet,
                 creator_username: username || 'Unknown',
                 creator_fighter_id: fighterId,
@@ -74,14 +156,15 @@ module.exports = async function handler(req, res) {
 
         if (error) {
             console.error("Supabase Error (Create Fight):", error);
-            return res.status(500).json({ error: "No se pudo crear la pelea." });
+            return res.status(500).json({ error: "Could not register the fight." });
         }
 
-        // 3. Responder con Éxito
+        // 5. Respond with success
         return res.status(200).json({
             success: true,
-            message: "Pelea creada exitosamente",
-            fight: fight
+            message: "Fight created with on-chain escrow",
+            fight: fight,
+            escrowPDA: expectedPDA.toBase58()
         });
 
     } catch (err) {

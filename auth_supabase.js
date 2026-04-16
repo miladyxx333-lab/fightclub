@@ -1,13 +1,83 @@
+// ============================================
+// AUTH SYSTEM v3 — Wallet-Native Authentication
+// Replaces username/password with Solana wallet signMessage
+// ============================================
+
 class AuthSystem {
     constructor() {
-        this.currentUser = JSON.parse(localStorage.getItem('cp_current_user_v2'));
+        this.currentUser = JSON.parse(localStorage.getItem('cp_wallet_user'));
     }
 
+    // ── Core Auth Flow ─────────────────────────
+
+    /**
+     * Login with connected Solana wallet.
+     * 1. Calls Supabase RPC to get/create user + nonce
+     * 2. Asks wallet to sign the nonce message
+     * 3. Stores session locally
+     */
+    async loginWithWallet() {
+        // Ensure wallet is connected
+        if (!wallet.connected || !wallet.publicKey) {
+            throw new Error('Wallet not connected');
+        }
+
+        const walletAddress = wallet.publicKey;
+
+        // Step 1: Get or create user in Supabase (returns nonce)
+        const { data, error } = await supabase.rpc('wallet_login', {
+            p_wallet: walletAddress
+        });
+
+        if (error) {
+            console.error('Supabase wallet_login error:', error);
+            throw new Error('Database error: ' + error.message);
+        }
+
+        // Step 2: Sign a message to prove wallet ownership
+        const nonce = data.nonce;
+        const message = `CyberPollo Arena Login\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+
+        try {
+            const signature = await wallet.signMessage(message);
+            // Signature verification could be done server-side for production
+            // For MVP, the fact that signMessage succeeded proves ownership
+            console.log('Wallet signature obtained:', signature ? '✅' : '❌');
+        } catch (signError) {
+            // User rejected the signature request
+            if (signError.message?.includes('User rejected')) {
+                throw new Error('Wallet signature declined');
+            }
+            throw signError;
+        }
+
+        // Step 3: Store session
+        this.currentUser = {
+            id: data.id,
+            wallet_address: data.wallet_address,
+            credits: data.credits,
+            is_new: data.is_new
+        };
+
+        this.saveSession();
+
+        return {
+            success: true,
+            user: this.currentUser,
+            isNew: data.is_new
+        };
+    }
+
+    /**
+     * Check auth state. If wallet is still connected and session exists, we're good.
+     * If not, redirect to login.
+     */
     async requireAuth() {
         if (!this.currentUser) {
             window.location.href = 'login.html';
             return;
         }
+        // Refresh user data from DB
         await this.refreshUser();
     }
 
@@ -22,94 +92,51 @@ class AuthSystem {
                 .single();
 
             if (data) {
-                this.currentUser = data;
+                this.currentUser = {
+                    id: data.id,
+                    wallet_address: data.wallet_address,
+                    username: data.username,
+                    credits: data.credits
+                };
                 this.saveSession();
             }
         } catch (e) {
-            console.error("Error refrescando usuario", e);
+            console.error('Error refreshing user:', e);
         }
-    }
-
-    async register(username, password) {
-        // Verificar si existe
-        const { data: existing } = await supabase
-            .from('game_users')
-            .select('id')
-            .eq('username', username)
-            .single();
-
-        if (existing) {
-            return { success: false, message: 'El usuario ya existe' };
-        }
-
-        // Crear usuario
-        const newUser = {
-            username: username,
-            password: password, // Almacenado directo como en el ejemplo (MVP)
-            credits: 100
-        };
-
-        const { data, error } = await supabase
-            .from('game_users')
-            .insert([newUser])
-            .select()
-            .single();
-
-        if (error) {
-            console.error(error);
-            return { success: false, message: 'Error creando usuario: ' + error.message };
-        }
-
-        return { success: true, message: 'Usuario creado exitosamente' };
-    }
-
-    async login(username, password) {
-        const { data, error } = await supabase
-            .from('game_users')
-            .select('*')
-            .eq('username', username)
-            .eq('password', password)
-            .single();
-
-        if (error || !data) {
-            return { success: false, message: 'Credenciales inválidas' };
-        }
-
-        this.currentUser = data;
-        this.saveSession();
-        return { success: true, user: data };
     }
 
     logout() {
         this.currentUser = null;
-        localStorage.removeItem('cp_current_user_v2');
+        localStorage.removeItem('cp_wallet_user');
+        // Also disconnect wallet if possible
+        if (wallet.connected) {
+            wallet.disconnect().catch(() => {});
+        }
         window.location.href = 'login.html';
     }
 
-    saveSession() {
-        localStorage.setItem('cp_current_user_v2', JSON.stringify(this.currentUser));
-    }
-
-    getCurrentUser() {
-        return this.currentUser;
-    }
+    // ── Credits Management ─────────────────────
 
     async addCredits(amount) {
         if (!this.currentUser) return;
 
-        const newTotal = this.currentUser.credits + amount;
+        const walletAddr = this.currentUser.wallet_address;
 
-        // Optimistic UI
-        this.currentUser.credits = newTotal;
+        // Optimistic UI update
+        this.currentUser.credits += amount;
         this.saveSession();
 
-        const { data, error } = await supabase.rpc('add_credits_secure', {
-            p_user_id: this.currentUser.id,
-            p_password: this.currentUser.password,
+        const { data, error } = await supabase.rpc('add_credits_wallet', {
+            p_wallet: walletAddr,
             p_amount: amount
         });
 
-        if (error || !data) console.error("Error sync credits", error);
+        if (error || !data) {
+            console.error('Error adding credits:', error);
+            // Revert optimistic update
+            this.currentUser.credits -= amount;
+            this.saveSession();
+        }
     }
 
     async deductCredits(amount) {
@@ -118,24 +145,45 @@ class AuthSystem {
         const currentCredits = this.currentUser.credits;
         if (currentCredits < amount) return false;
 
+        const walletAddr = this.currentUser.wallet_address;
+
         // Optimistic update
         this.currentUser.credits -= amount;
         this.saveSession();
 
-        const { data, error } = await supabase.rpc('deduct_credits_secure', {
-            p_user_id: this.currentUser.id,
-            p_password: this.currentUser.password,
+        const { data, error } = await supabase.rpc('deduct_credits_wallet', {
+            p_wallet: walletAddr,
             p_amount: amount
         });
 
         if (error || !data) {
-            console.error("Error deducting credits", error);
-            // Revertir cambio optimista
+            console.error('Error deducting credits:', error);
+            // Revert
             this.currentUser.credits += amount;
             this.saveSession();
             return false;
         }
         return true;
+    }
+
+    // ── Helpers ────────────────────────────────
+
+    getCurrentUser() {
+        return this.currentUser;
+    }
+
+    getShortWallet() {
+        if (!this.currentUser?.wallet_address) return '???';
+        const w = this.currentUser.wallet_address;
+        return w.slice(0, 4) + '...' + w.slice(-4);
+    }
+
+    saveSession() {
+        localStorage.setItem('cp_wallet_user', JSON.stringify(this.currentUser));
+    }
+
+    isLoggedIn() {
+        return !!this.currentUser;
     }
 }
 

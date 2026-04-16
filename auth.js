@@ -1,83 +1,36 @@
-class AuthSystem {
-    constructor() {
-        this.currentUser = JSON.parse(localStorage.getItem('cp_current_user'));
-        this.users = JSON.parse(localStorage.getItem('cp_users')) || {};
-    }
+// ============================================
+// AUTH LEGACY — DEPRECATED
+// ============================================
+// This file has been superseded by auth_supabase.js (v3)
+// which uses wallet-native authentication.
+//
+// This file is kept for backward compatibility only.
+// All pages should now load auth_supabase.js instead.
+//
+// If any page still loads this file, it creates a 
+// minimal shim that delegates to the new auth system.
+// ============================================
 
-    register(username, password) {
-        if (this.users[username]) {
-            return { success: false, message: 'El usuario ya existe' };
+if (typeof AuthSystem === 'undefined') {
+    console.warn('[AUTH] Legacy auth.js loaded. This is deprecated. Use auth_supabase.js instead.');
+    
+    class AuthSystem {
+        constructor() {
+            this.currentUser = JSON.parse(localStorage.getItem('cp_wallet_user'));
         }
-
-        const newUser = {
-            username,
-            password, // In a real app, hash this!
-            credits: 0,
-            joinedDate: new Date().toISOString()
-        };
-
-        this.users[username] = newUser;
-        this.saveUsers();
-        return { success: true, message: 'Usuario creado exitosamente' };
-    }
-
-    login(username, password) {
-        const user = this.users[username];
-        if (user && user.password === password) {
-            this.currentUser = user;
-            this.saveCurrentUser();
-            return { success: true, user };
+        getCurrentUser() { return this.currentUser; }
+        requireAuth() {
+            if (!this.currentUser) window.location.href = 'login.html';
         }
-        return { success: false, message: 'Credenciales inválidas' };
-    }
-
-    logout() {
-        this.currentUser = null;
-        localStorage.removeItem('cp_current_user');
-        window.location.href = 'login.html';
-    }
-
-    addCredits(amount) {
-        if (!this.currentUser) return;
-
-        this.currentUser.credits += amount;
-
-        // Update master record
-        this.users[this.currentUser.username].credits = this.currentUser.credits;
-
-        this.saveUsers();
-        this.saveCurrentUser();
-    }
-
-    deductCredits(amount) {
-        if (!this.currentUser) return false;
-        if (this.currentUser.credits < amount) return false;
-
-        this.currentUser.credits -= amount;
-        this.users[this.currentUser.username].credits = this.currentUser.credits;
-
-        this.saveUsers();
-        this.saveCurrentUser();
-        return true;
-    }
-
-    getCurrentUser() {
-        return this.currentUser;
-    }
-
-    requireAuth() {
-        if (!this.currentUser) {
+        logout() {
+            localStorage.removeItem('cp_wallet_user');
             window.location.href = 'login.html';
         }
+        addCredits() { console.warn('Legacy addCredits called — no-op'); }
+        deductCredits() { console.warn('Legacy deductCredits called — no-op'); return false; }
     }
-
-    saveUsers() {
-        localStorage.setItem('cp_users', JSON.stringify(this.users));
-    }
-
-    saveCurrentUser() {
-        localStorage.setItem('cp_current_user', JSON.stringify(this.currentUser));
+    
+    if (typeof auth === 'undefined') {
+        const auth = new AuthSystem();
     }
 }
-
-const auth = new AuthSystem();

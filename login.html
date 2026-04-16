@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberPollo - Acceso</title>
+    <title>CyberPollo Arena — Connect Wallet</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <style>
@@ -18,38 +18,233 @@
 
         .auth-card {
             width: 100%;
-            max-width: 450px;
+            max-width: 480px;
             padding: 3rem;
             text-align: center;
         }
 
         .auth-logo {
-            font-size: 3rem;
+            font-size: 4rem;
             margin-bottom: 0.5rem;
+            animation: pulse-glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            from { filter: drop-shadow(0 0 8px rgba(255, 7, 58, 0.4)); }
+            to { filter: drop-shadow(0 0 20px rgba(255, 7, 58, 0.8)); }
         }
 
         .auth-title {
-            margin-bottom: 2rem;
-            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
+            background: linear-gradient(90deg, #ff073a, #9945ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .auth-form {
+        .auth-subtitle {
+            color: var(--text-muted, #888);
+            font-size: 1rem;
+            margin-bottom: 2.5rem;
+            line-height: 1.5;
+        }
+
+        /* ── Wallet Buttons ─── */
+        .wallet-options {
             display: flex;
             flex-direction: column;
-            gap: 1.2rem;
+            gap: 12px;
+            margin-bottom: 2rem;
         }
 
-        .toggle-text {
-            margin-top: 1.5rem;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .toggle-link {
-            color: var(--primary);
+        .wallet-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 16px 24px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             cursor: pointer;
-            font-weight: bold;
-            text-decoration: underline;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wallet-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .wallet-btn:hover::before {
+            left: 100%;
+        }
+
+        .wallet-btn-phantom {
+            background: linear-gradient(135deg, #4b0082, #7c3aed);
+            border-color: rgba(124, 58, 237, 0.4);
+        }
+        .wallet-btn-phantom:hover {
+            border-color: #9945ff;
+            box-shadow: 0 0 25px rgba(153, 69, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .wallet-btn-solflare {
+            background: linear-gradient(135deg, #fc6c00, #ff9a00);
+            border-color: rgba(252, 108, 0, 0.4);
+        }
+        .wallet-btn-solflare:hover {
+            border-color: #ff9a00;
+            box-shadow: 0 0 25px rgba(255, 154, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .wallet-btn-any {
+            background: linear-gradient(135deg, #1a1a2e, #2d2d4e);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .wallet-btn-any:hover {
+            border-color: #14f195;
+            box-shadow: 0 0 25px rgba(20, 241, 149, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .wallet-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .wallet-icon {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+        }
+
+        /* ── Status Messages ─── */
+        .status-msg {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: none;
+        }
+        .status-msg.show { display: block; }
+        .status-msg.error {
+            background: rgba(255, 7, 58, 0.1);
+            border: 1px solid rgba(255, 7, 58, 0.3);
+            color: #ff4466;
+        }
+        .status-msg.success {
+            background: rgba(20, 241, 149, 0.1);
+            border: 1px solid rgba(20, 241, 149, 0.3);
+            color: #14f195;
+        }
+        .status-msg.loading {
+            background: rgba(153, 69, 255, 0.1);
+            border: 1px solid rgba(153, 69, 255, 0.3);
+            color: #c084ff;
+        }
+
+        /* ── Connected State ─── */
+        .connected-state {
+            display: none;
+            text-align: center;
+        }
+        .connected-state.show { display: block; }
+
+        .connected-wallet {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(20, 241, 149, 0.1);
+            border: 1px solid rgba(20, 241, 149, 0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+            color: #14f195;
+            font-size: 1rem;
+        }
+
+        .connected-dot {
+            width: 10px; height: 10px;
+            background: #14f195;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #14f195;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .enter-btn {
+            display: inline-block;
+            font-size: 1.5rem;
+            font-weight: 900;
+            padding: 1rem 3rem;
+            background: linear-gradient(135deg, #ff073a, #9945ff);
+            color: white;
+            border: 2px solid #fff;
+            border-radius: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(255, 7, 58, 0.5);
+        }
+        .enter-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(255, 7, 58, 0.8);
+        }
+
+        .welcome-text {
+            font-size: 1.1rem;
+            color: #ccc;
+            margin-bottom: 1.5rem;
+        }
+        .welcome-text strong {
+            color: #14f195;
+        }
+
+        .bonus-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #9945ff, #14f195);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+        }
+
+        /* ── Security Note ─── */
+        .security-note {
+            margin-top: 2rem;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #666;
+            line-height: 1.6;
+        }
+        .security-note strong {
+            color: #888;
         }
     </style>
 </head>
@@ -60,101 +255,150 @@
     <div class="auth-container">
         <div class="glass-panel auth-card">
             <div class="auth-logo">🐔</div>
-            <h2 class="auth-title" id="form-title">Iniciar Sesión</h2>
-
-            <form id="auth-form" class="auth-form">
-                <div class="input-with-icon">
-                    <input type="text" id="username" placeholder="Usuario" required>
-                </div>
-                <div class="input-with-icon">
-                    <input type="password" id="password" placeholder="Contraseña" required>
-                </div>
-
-                <button type="submit" class="action-btn mega-btn" id="submit-btn">ENTRAR</button>
-            </form>
-
-            <p class="status-message" id="error-msg" style="color: var(--danger); margin-top: 1rem;"></p>
-
-            <p class="toggle-text">
-                <span id="toggle-msg">¿No tienes cuenta?</span>
-                <span id="toggle-btn" class="toggle-link">Regístrate aquí</span>
+            <h2 class="auth-title">CyberPollo Arena</h2>
+            <p class="auth-subtitle">
+                Connect your Solana wallet to enter the arena.<br>
+                No passwords. No emails. Just your wallet.
             </p>
+
+            <!-- ── Wallet Selection (before connect) ── -->
+            <div id="wallet-selection" class="wallet-options">
+                <button class="wallet-btn wallet-btn-phantom" id="btn-phantom" onclick="connectSpecific('phantom')">
+                    <img src="https://raw.githubusercontent.com/nicnocquee/try-connecting-to-solana-wallet/refs/heads/main/public/phantom.svg"
+                        alt="Phantom" class="wallet-icon" onerror="this.style.display='none'">
+                    <span>Phantom</span>
+                </button>
+
+                <button class="wallet-btn wallet-btn-solflare" id="btn-solflare" onclick="connectSpecific('solflare')">
+                    <img src="https://raw.githubusercontent.com/nicnocquee/try-connecting-to-solana-wallet/refs/heads/main/public/solflare.svg"
+                        alt="Solflare" class="wallet-icon" onerror="this.style.display='none'">
+                    <span>Solflare</span>
+                </button>
+
+                <button class="wallet-btn wallet-btn-any" id="btn-any" onclick="connectSpecific('any')">
+                    🔌
+                    <span>Other Wallet</span>
+                </button>
+            </div>
+
+            <!-- ── Status ── -->
+            <div id="status-msg" class="status-msg"></div>
+
+            <!-- ── Connected State (after connect) ── -->
+            <div id="connected-state" class="connected-state">
+                <div class="connected-wallet">
+                    <span class="connected-dot"></span>
+                    <span id="display-wallet">????...????</span>
+                </div>
+
+                <div class="welcome-text" id="welcome-text">
+                    Welcome back, <strong id="display-short"></strong>
+                </div>
+
+                <button class="enter-btn" id="enter-btn" onclick="enterArena()">
+                    ⚔️ ENTER ARENA
+                </button>
+
+                <div id="new-user-badge" style="display:none; margin-top: 1rem;">
+                    <span class="bonus-badge">🎁 +100 Credits Bonus!</span>
+                </div>
+            </div>
+
+            <div class="security-note">
+                <strong>🔒 Secure</strong> — We only ask you to sign a message to prove ownership. 
+                No transaction is sent. No SOL is spent. Your private keys never leave your wallet.
+            </div>
         </div>
     </div>
 
-    <!-- Supabase CDN -->
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Config -->
     <script src="supabaseClient.js"></script>
-    <!-- Auth Logic -->
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js"></script>
-    
+
     <script>
-        const form = document.getElementById('auth-form');
-        const toggleBtn = document.getElementById('toggle-btn');
-        const formTitle = document.getElementById('form-title');
-        const submitBtn = document.getElementById('submit-btn');
-        const errorMsg = document.getElementById('error-msg');
-        const toggleMsg = document.getElementById('toggle-msg');
-
-        let isLogin = true;
-
-        toggleBtn.addEventListener('click', () => {
-            isLogin = !isLogin;
-            if (isLogin) {
-                formTitle.textContent = 'Iniciar Sesión';
-                submitBtn.textContent = 'ENTRAR';
-                toggleMsg.textContent = '¿No tienes cuenta?';
-                toggleBtn.textContent = 'Regístrate aquí';
-            } else {
-                formTitle.textContent = 'Crear Cuenta';
-                submitBtn.textContent = 'REGISTRARSE';
-                toggleMsg.textContent = '¿Ya tienes cuenta?';
-                toggleBtn.textContent = 'Ingresa aquí';
+        // ── Wallet Detection ──
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already logged in
+            if (auth.isLoggedIn()) {
+                showConnectedState(auth.getCurrentUser());
             }
-            errorMsg.textContent = '';
+
+            // Detect available wallets
+            setTimeout(() => {
+                if (!window.phantom?.solana?.isPhantom) {
+                    document.getElementById('btn-phantom').style.opacity = '0.4';
+                }
+                if (!window.solflare?.isSolflare) {
+                    document.getElementById('btn-solflare').style.opacity = '0.4';
+                }
+            }, 500);
         });
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-
-            submitBtn.textContent = 'Procesando...';
-            submitBtn.disabled = true;
+        // ── Connect Wallet ──
+        async function connectSpecific(type) {
+            const allBtns = document.querySelectorAll('.wallet-btn');
+            allBtns.forEach(b => b.disabled = true);
+            showStatus('Connecting wallet...', 'loading');
 
             try {
-                if (isLogin) {
-                    const result = await auth.login(user, pass);
-                    if (result.success) {
-                        window.location.href = 'game.html';
-                    } else {
-                        errorMsg.textContent = result.message;
-                        submitBtn.textContent = 'ENTRAR';
-                        submitBtn.disabled = false;
-                    }
-                } else {
-                    const result = await auth.register(user, pass);
-                    if (result.success) {
-                        // Auto login after register
-                        const loginRes = await auth.login(user, pass);
-                        if (loginRes.success) {
-                            window.location.href = 'store.html';
-                        } else {
-                            window.location.href = 'login.html';
-                        }
-                    } else {
-                        errorMsg.textContent = result.message;
-                        submitBtn.textContent = 'REGISTRARSE';
-                        submitBtn.disabled = false;
-                    }
+                await wallet.connect();
+                showStatus('Wallet connected! Verifying...', 'loading');
+
+                // Now authenticate with Supabase
+                const result = await auth.loginWithWallet();
+
+                if (result.success) {
+                    showStatus('✅ Authenticated!', 'success');
+                    showConnectedState(result.user, result.isNew);
                 }
             } catch (err) {
-                console.error(err);
-                errorMsg.textContent = "Error de conexión";
-                submitBtn.disabled = false;
+                console.error('Login error:', err);
+
+                if (err.message?.includes('No Solana wallet')) {
+                    showStatus('No wallet detected. Install Phantom or Solflare.', 'error');
+                } else if (err.message?.includes('User rejected') || err.message?.includes('declined')) {
+                    showStatus('You declined the signature. Try again when ready.', 'error');
+                } else {
+                    showStatus('Error: ' + err.message, 'error');
+                }
+
+                allBtns.forEach(b => b.disabled = false);
             }
-        });
+        }
+
+        // ── Show Connected UI ──
+        function showConnectedState(user, isNew = false) {
+            document.getElementById('wallet-selection').style.display = 'none';
+
+            const state = document.getElementById('connected-state');
+            state.classList.add('show');
+
+            const walletAddr = user.wallet_address;
+            document.getElementById('display-wallet').textContent =
+                walletAddr.slice(0, 6) + '...' + walletAddr.slice(-6);
+            document.getElementById('display-short').textContent =
+                walletAddr.slice(0, 4) + '...' + walletAddr.slice(-4);
+
+            if (isNew) {
+                document.getElementById('new-user-badge').style.display = 'block';
+                document.getElementById('welcome-text').innerHTML =
+                    `Welcome to the Arena, <strong>${walletAddr.slice(0, 4)}...${walletAddr.slice(-4)}</strong>!`;
+            }
+        }
+
+        // ── Enter Arena ──
+        function enterArena() {
+            window.location.href = 'game.html';
+        }
+
+        // ── Status Helper ──
+        function showStatus(msg, type) {
+            const el = document.getElementById('status-msg');
+            el.textContent = msg;
+            el.className = `status-msg show ${type}`;
+        }
     </script>
 </body>
 

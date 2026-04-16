@@ -2,6 +2,15 @@
 // ARENA LOBBY — List, Create & Join P2P Fights
 // ============================================
 
+const CONFIG = {
+    // ⚠️ UPDATE THESE FOR MAINNET DEPLOYMENT
+    AUTHORITY_PUBKEY: 'e6uU5apmNZrUX4L2fCZ7hupZMwofS3JUNXEHcSxqcBD', // The backend's house wallet public key
+    TOKEN_MINTS: {
+        'USDC': 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet USDC
+        'BONK': 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'  // Mainnet BONK
+    }
+};
+
 class ArenaLobby {
     constructor() {
         this.fights = [];
@@ -306,7 +315,7 @@ class ArenaLobby {
         `;
     }
 
-    // ── Create Fight ──────────────────────────
+    // ── Create Fight (On-Chain Escrow) ──────────
     async createFight() {
         if (!wallet.connected) {
             alert('Connect your wallet first!');
@@ -316,9 +325,15 @@ class ArenaLobby {
             alert('Select a fighter first!');
             return;
         }
+        if (!escrow) {
+            alert('Escrow client not initialized. Reload the page.');
+            return;
+        }
 
         const tokenSymbol = this.tokenInput?.value.trim().toUpperCase() || 'SOL';
         const betAmount = parseFloat(this.betAmountInput?.value) || 0;
+
+        const decimals = tokenSymbol === 'USDC' ? 6 : (tokenSymbol === 'BONK' ? 5 : 9);
 
         if (betAmount <= 0) {
             alert('Enter a valid bet amount!');
@@ -326,30 +341,62 @@ class ArenaLobby {
         }
 
         this.createFightBtn.disabled = true;
-        this.createFightBtn.textContent = 'Awaiting Solana Approval...';
+        this.createFightBtn.textContent = 'Building Escrow TX...';
 
         try {
-            const lamports = Math.floor(betAmount * 1e9);
-            
-            // 1. Send the Solana Transaction (Escrow to House)
-            const txSignature = await wallet.sendBetTransaction(lamports);
-            this.createFightBtn.textContent = 'Confirming...';
+            const rawAmount = Math.floor(betAmount * Math.pow(10, decimals));
 
-            // 2. Contact Backend API to register the fight
+            // Generate a unique fight ID (UUID-like) for the PDA seed
+            const fightId = crypto.randomUUID();
+
+            // Authority = the backend's resolution wallet (house wallet for now)
+            const AUTHORITY_PUBKEY = CONFIG.AUTHORITY_PUBKEY;
+
+            let tx;
+            if (tokenSymbol === 'SOL') {
+                // 1. Build the Anchor create_fight transaction for Native SOL
+                tx = await escrow.buildCreateFightTx(
+                    fightId,
+                    rawAmount,
+                    wallet.publicKey,
+                    AUTHORITY_PUBKEY
+                );
+            } else {
+                // 1. Build SPL Token transaction
+                const mintAddress = CONFIG.TOKEN_MINTS[tokenSymbol];
+                tx = await escrow.buildCreateFightSplTx(
+                    fightId,
+                    rawAmount,
+                    wallet.publicKey,
+                    AUTHORITY_PUBKEY,
+                    mintAddress
+                );
+            }
+
+            this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
+
+            // 2. Sign and send via wallet
+            const txSignature = await wallet.signAndSendTransaction(tx);
+
+            this.createFightBtn.textContent = 'Confirming on-chain...';
+
+            // 3. Register fight in Supabase (backend)
             const response = await fetch('/api/arena/create-fight', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     txSignature: txSignature,
+                    fightId: fightId, // Pass the PDA fight ID
                     creatorWallet: wallet.publicKey,
                     username: wallet.getShortAddress(),
                     fighterId: this.selectedFighter.id.toString(),
                     fighterName: this.selectedFighter.name,
                     fighterImage: this.selectedFighter.image,
-                    tokenMint: tokenSymbol === 'SOL' ? 'native' : tokenSymbol,
+                    tokenMint: tokenSymbol === 'SOL' ? 'native' : CONFIG.TOKEN_MINTS[tokenSymbol],
                     tokenSymbol: tokenSymbol,
-                    betAmount: lamports,
-                    betDisplay: `${betAmount} ${tokenSymbol}`
+                    betAmount: rawAmount,
+                    betDisplay: `${betAmount} ${tokenSymbol}`,
+                    escrowPDA: escrow.getFightPDA(fightId).pda.toBase58(),
                 })
             });
 
@@ -359,12 +406,11 @@ class ArenaLobby {
             this.createModal.classList.add('hidden');
             this.selectedFighter = null;
 
-            // Show success
-            this.showToast('⚔️ Fight created! Waiting for a challenger...', 'success');
+            // Show success with on-chain confirmation
+            this.showToast(`⚔️ Fight created on-chain! PDA: ${escrow.getFightPDA(fightId).pda.toBase58().slice(0,8)}...`, 'success');
 
         } catch (err) {
             console.error('Error creating fight:', err);
-            // Ignore user rejecting the wallet popup
             if (!err.message.includes('User rejected')) {
                 alert('Error processing fight: ' + err.message);
             }
@@ -408,28 +454,40 @@ class ArenaLobby {
 
     async joinFight() {
         if (!this.selectedFighter || !this.joiningFightId) return;
+        if (!escrow) {
+            alert('Escrow client not initialized. Reload the page.');
+            return;
+        }
 
         this.createFightBtn.disabled = true;
-        this.createFightBtn.textContent = 'Awaiting Solana Approval...';
+        this.createFightBtn.textContent = 'Building Escrow TX...';
 
         try {
-            // 1. Send the Solana Transaction (Escrow to House)
-            // Extract numeric amount from string (e.g. "0.05 SOL" -> 0.05)
-            const matchAmount = parseFloat(this.joiningFight.bet_amount_display);
-            const lamports = Math.floor((matchAmount || 0) * 1e9); 
-            
-            // Backup fallback calculation just in case
-            const actualLamports = this.joiningFight.bet_amount || lamports;
+            // The joiningFightId is the Supabase UUID, which is also the PDA seed
+            const fightId = this.joiningFightId;
+            const fight = this.joiningFight;
 
-            const txSignature = await wallet.sendBetTransaction(actualLamports);
-            this.createFightBtn.textContent = 'Confirming...';
+            let tx;
+            if (fight.token_symbol === 'SOL' || fight.token_mint === 'native') {
+                // 1. Build the Anchor join_fight transaction
+                tx = await escrow.buildJoinFightTx(fightId, wallet.publicKey);
+            } else {
+                tx = await escrow.buildJoinFightSplTx(fightId, wallet.publicKey, fight.token_mint);
+            }
 
-            // 2. Contact Backend API to join the fight
+            this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
+
+            // 2. Sign and send via wallet
+            const txSignature = await wallet.signAndSendTransaction(tx);
+
+            this.createFightBtn.textContent = 'Confirming on-chain...';
+
+            // 3. Contact Backend API to update fight status
             const response = await fetch('/api/arena/join-fight', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    fightId: this.joiningFightId,
+                    fightId: fightId,
                     txSignature: txSignature,
                     challengerWallet: wallet.publicKey,
                     username: wallet.getShortAddress(),
@@ -445,7 +503,7 @@ class ArenaLobby {
             this.createModal.classList.add('hidden');
 
             // Navigate to combat
-            window.location.href = `arena_fight.html?id=${this.joiningFightId}&role=challenger`;
+            window.location.href = `arena_fight.html?id=${fightId}&role=challenger`;
 
         } catch (err) {
             console.error('Error joining fight:', err);

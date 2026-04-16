@@ -258,18 +258,26 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js"></script>
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js"></script>
     <script>
         const AUTH_USERS_KEY = 'cp_users';
         const WITHDRAW_KEY = 'cp_withdrawals';
         const API_URL = "/api";
+        // Admin wallet — change this to your actual admin wallet address
+        const ADMIN_WALLET = 'e6uU5apmNZrUX4L2fCZ7hupZMwofS3JUNXEHcSxqcBD';
 
         document.addEventListener('DOMContentLoaded', async () => {
             await auth.requireAuth();
             const user = auth.getCurrentUser();
             
-            // Check admin status against the server-validated user info
-            if (!user || user.username !== 'admin') {
+            // Check admin status: must match admin wallet or legacy username
+            const isAdmin = user && (
+                user.wallet_address === ADMIN_WALLET ||
+                user.username === 'admin'
+            );
+
+            if (!isAdmin) {
                 alert('Acceso Denegado. Solo acceso para administradores.');
                 window.location.href = 'game.html';
                 return;

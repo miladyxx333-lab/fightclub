@@ -115,20 +115,16 @@
                 </div>
             </div>
 
-            <!-- Step 2: Token (Hidden for MVP, SOL Only) -->
-            <div id="token-select-section" class="modal-section" style="display: none;">
+            <!-- Step 2: Token Selection (Phase 4: SPL Tokens) -->
+            <div id="token-select-section" class="modal-section">
                 <label class="modal-label">Token to Bet</label>
-                <div class="token-input-row">
-                    <input type="text" id="token-symbol-input" value="SOL" placeholder="Token symbol"
-                        class="arena-input token-input">
+                <div class="token-input-row" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <select id="token-symbol-input" class="arena-input token-input" style="flex:1;">
+                        <option value="SOL">SOL (Native)</option>
+                        <option value="USDC">USDC (SPL)</option>
+                        <option value="BONK">BONK (SPL)</option>
+                    </select>
                 </div>
-                <!-- 
-                <div class="popular-tokens">
-                    <span class="pop-label">Popular:</span>
-                    <button class="token-chip" onclick="document.getElementById('token-symbol-input').value='SOL'">SOL</button>
-                    <button class="token-chip" onclick="document.getElementById('token-symbol-input').value='BONK'">BONK</button>
-                </div>
-                -->
             </div>
 
             <!-- Step 3: Amount -->
@@ -161,6 +157,7 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="supabaseClient.js"></script>
     <script src="wallet_adapter.js"></script>
+    <script src="escrow_client.js"></script>
     <script src="arena.js"></script>
 </body>
 

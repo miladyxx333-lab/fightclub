@@ -54,6 +54,10 @@
                     <span class="label" data-i18n="credits">Créditos:</span>
                     <span id="user-credits" class="value">--</span>
                 </div>
+                <div class="chip" id="wallet-chip"
+                    style="background: rgba(20,241,149,0.1); border: 1px solid rgba(20,241,149,0.3); margin-left: 8px; display: none;">
+                    <span style="color: #14f195; font-family: monospace; font-size: 0.85rem;" id="header-wallet-addr">????</span>
+                </div>
                 <button class="nav-btn" id="logout-btn"
                     style="width: auto; padding: 5px 10px; border-radius: 8px; margin-left: 10px; background: var(--danger);">
                     ⏻
@@ -241,10 +245,12 @@
     <!-- Supabase Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js"></script>
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js"></script>
     <script src="lang.js"></script>
+    <script src="provably_fair.js"></script>
     <script src="combat_engine.js"></script>
-    <script src="script.js?v=cyber3"></script>
+    <script src="script.js?v=wallet"></script>
 </body>
 
 </html>

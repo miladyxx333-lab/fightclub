@@ -1,3 +1,12 @@
+// ============================================
+// COMBAT ENGINE — Solo Mode (Provably Fair)
+// ============================================
+//
+// Uses the ProvablyFairEngine for commit-reveal dice rolls.
+// In solo mode, the commit/reveal is self-contained (client-side)
+// since there's no opponent to cheat against — it's PvE.
+// The commitment is still shown for transparency.
+
 class CombatSession {
     constructor(playerFighter, opponentFighter, riskMultiplier, gameInstance) {
         this.player = playerFighter;
@@ -31,27 +40,29 @@ class CombatSession {
         this.battleLog = document.getElementById('battle-log');
         this.vsOverlay = document.getElementById('vs-overlay');
 
+        // Provably fair state
+        this.currentRound = null; // { serverSeed, commitment }
+
         this.init();
     }
 
-    init() {
+    async init() {
         this.vsOverlay.classList.add('hidden');
         this.interactionArea.classList.remove('hidden');
         this.battleLog.textContent = t('turnStart');
         this.updateHPUI();
 
-        // Default random client seed if empty
+        // Generate crypto-secure client seed
         if (!this.clientSeedInput.value) {
-            this.clientSeedInput.value = this.generateRandomHex(8);
+            this.clientSeedInput.value = provablyFair.generateSecureHex(8);
         }
 
-        this.prepareTurn();
+        await this.prepareTurn();
 
         // Bind Controls
         this.boundLow = () => this.handleTurn('low');
         this.boundHigh = () => this.handleTurn('high');
 
-        // Clear previous listeners and ENABLE buttons
         this.btnLow.onclick = this.boundLow;
         this.btnHigh.onclick = this.boundHigh;
         this.btnLow.disabled = false;
@@ -61,20 +72,13 @@ class CombatSession {
         this.diceEl.className = 'dice';
     }
 
-    generateRandomHex(length) {
-        let result = '';
-        const characters = '0123456789abcdef';
-        for (let i = 0; i < length; i++) {
-            result += characters.charAt(Math.floor(Math.random() * characters.length));
-        }
-        return result;
-    }
+    async prepareTurn() {
+        // Generate commitment for this round
+        this.currentRound = await provablyFair.prepareSoloRound();
 
-    prepareTurn() {
-        // Generate new Server Seed for this round
-        this.currentServerSeed = this.generateRandomHex(32);
-        // Show hidden placeholder
-        this.serverSeedInput.value = t('hiddenHash');
+        // Show commitment hash (proves server can't change seed after player acts)
+        this.serverSeedInput.value = `🔒 ${this.currentRound.commitment.slice(0, 24)}...`;
+        this.serverSeedInput.title = `Commitment: ${this.currentRound.commitment}`;
     }
 
     async handleTurn(prediction) {
@@ -88,21 +92,25 @@ class CombatSession {
         // Wait for visual roll
         await new Promise(r => setTimeout(r, 600));
 
-        // --- Deterministic Outcome Logic ---
-        const clientSeed = this.clientSeedInput.value || "default_luck";
-        const combined = this.currentServerSeed + clientSeed;
+        // --- Provably Fair Outcome ---
+        const clientSeed = this.clientSeedInput.value || provablyFair.generateSecureHex(8);
+        const serverSeed = this.currentRound.serverSeed;
+        const commitment = this.currentRound.commitment;
 
-        let hashVal = 0;
-        for (let i = 0; i < combined.length; i++) {
-            const char = combined.charCodeAt(i);
-            hashVal = ((hashVal << 5) - hashVal) + char;
-            hashVal = hashVal & hashVal;
+        // Verify and calculate roll
+        const result = await provablyFair.verifyAndRoll(serverSeed, clientSeed, commitment);
+
+        if (!result.valid) {
+            this.battleLog.textContent = '⚠️ ' + result.error;
+            this.battleLog.style.color = '#ff073a';
+            return;
         }
-        const positiveHash = Math.abs(hashVal);
-        const roll = (positiveHash % 6) + 1;
+
+        const roll = result.roll;
 
         // Reveal Server Seed
-        this.serverSeedInput.value = this.currentServerSeed;
+        this.serverSeedInput.value = serverSeed;
+        this.serverSeedInput.title = 'Verified ✓';
 
         // -----------------------------------
 
@@ -124,7 +132,7 @@ class CombatSession {
             const dmg = Math.floor(this.baseDamage * crit);
             this.opponentHP = Math.max(0, this.opponentHP - dmg);
 
-            this.battleLog.textContent = t('hitMsg', { dmg: dmg });
+            this.battleLog.textContent = t('hitMsg', { dmg: dmg }) + ` [Roll: ${roll}] ✓`;
             this.battleLog.style.color = '#39ff14';
 
             // Shake effect on opponent
@@ -132,10 +140,10 @@ class CombatSession {
             setTimeout(() => this.game.opponentDisplay.style.transform = "none", 100);
         } else {
             // Opponent Attack
-            const dmg = Math.floor(this.baseDamage * 0.8); // Slightly less dmg from enemy usually
+            const dmg = Math.floor(this.baseDamage * 0.8);
             this.playerHP = Math.max(0, this.playerHP - dmg);
 
-            this.battleLog.textContent = t('missMsg', { dmg: dmg });
+            this.battleLog.textContent = t('missMsg', { dmg: dmg }) + ` [Roll: ${roll}] ✓`;
             this.battleLog.style.color = '#ff073a';
 
             // Shake effect on player
@@ -152,7 +160,11 @@ class CombatSession {
             // Next Turn
             this.btnLow.disabled = false;
             this.btnHigh.disabled = false;
-            this.prepareTurn();
+
+            // New client seed for next round
+            this.clientSeedInput.value = provablyFair.generateSecureHex(8);
+
+            await this.prepareTurn();
         }
     }
 
@@ -179,9 +191,3 @@ class CombatSession {
         this.game.endCombat(isWin, this.opponent);
     }
 }
-
-// Modify CyberPolloGame to use CombatSession
-// We will monkey-patch or just redefine the startCombat method in main script via this replacement tool if possible.
-// Wait, I am overwriting a new file, but I need to integrate with main script. 
-// I will output this class as a standalone file and include it, OR just append it to script.js. 
-// Appending to script.js is safer to keep logic together.

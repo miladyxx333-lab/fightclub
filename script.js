@@ -280,6 +280,15 @@ class CyberPolloGame {
     updateUI() {
         this.user = auth.getCurrentUser();
         this.creditsEl.textContent = this.user.credits;
+
+        // Show wallet address in header if available
+        const walletChip = document.getElementById('wallet-chip');
+        const walletAddr = document.getElementById('header-wallet-addr');
+        if (walletChip && walletAddr && this.user.wallet_address) {
+            const w = this.user.wallet_address;
+            walletAddr.textContent = w.slice(0, 4) + '...' + w.slice(-4);
+            walletChip.style.display = 'inline-flex';
+        }
     }
 }
 

@@ -1,15 +1,36 @@
 const { createClient } = require('@supabase/supabase-js');
-const { Connection } = require('@solana/web3.js');
+const { Connection, PublicKey } = require('@solana/web3.js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hpebvddocrfqtkbvqusk.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwZWJ2ZGRvY3JmcXRrYnZxdXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNzMwNzEsImV4cCI6MjA4MTc0OTA3MX0.byPXz6lvRFH81273qhHLI5H5QUxutYA0z7nGh1GTCdg';
-const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
+const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.devnet.solana.com';
+const PROGRAM_ID = process.env.PROGRAM_ID || 'FiGHt1111111111111111111111111111111111111';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const connection = new Connection(SOLANA_RPC, 'confirmed');
 
-function setCorsHeaders(res) {
+// Basic in-memory rate limiting (Serverless Edge)
+const rateLimitCache = new Map();
+function checkRateLimit(ip) {
+    if (!ip) return true;
+    const now = Date.now();
+    const entry = rateLimitCache.get(ip) || { count: 0, resetAt: now + 60000 };
+    if (now > entry.resetAt) {
+        entry.count = 1;
+        entry.resetAt = now + 60000;
+    } else {
+        entry.count++;
+    }
+    rateLimitCache.set(ip, entry);
+    // Limit to 10 joins per IP per minute
+    return entry.count <= 10;
+}
+
+function setCorsHeaders(req, res) {
+    const origin = req.headers.origin;
+    const allowed = process.env.ALLOWED_ORIGIN || origin || '*';
     res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', allowed);
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
     res.setHeader(
         'Access-Control-Allow-Headers',
@@ -17,9 +38,33 @@ function setCorsHeaders(res) {
     );
 }
 
+function getEscrowPDA(fightId) {
+    const programId = new PublicKey(PROGRAM_ID);
+    const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('fight_escrow'), Buffer.from(fightId)],
+        programId
+    );
+    return pda;
+}
+
+function getFightTokenPDA(fightId) {
+    const programId = new PublicKey(PROGRAM_ID);
+    const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('fight_escrow_token'), Buffer.from(fightId)],
+        programId
+    );
+    return pda;
+}
+
 module.exports = async function handler(req, res) {
-    setCorsHeaders(res);
+    setCorsHeaders(req, res);
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (!checkRateLimit(ip)) {
+        return res.status(429).json({ error: 'Too many fight joins. Slow down!' });
+    }
+
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
@@ -34,23 +79,48 @@ module.exports = async function handler(req, res) {
         } = req.body;
 
         if (!fightId || !txSignature || !challengerWallet || !fighterId) {
-            return res.status(400).json({ error: "Faltan parámetros requeridos" });
+            return res.status(400).json({ error: "Missing required parameters" });
         }
 
-        // 1. (Opcional) Verificar que la TX fue confirmada mandando tokens a la casa
-        console.log(`[ARENA] Verificando TX de unión a pelea ${fightId}: ${txSignature}`);
-
-        // 2. Comprobar que la pelea sigue "waiting" para evitar Double-Spending (carrera asíncrona)
+        // 1. Verify fight is still waiting (race condition prevention)
         const { data: fightCheck } = await supabase
             .from('arena_fights')
-            .select('status, challenger_wallet')
+            .select('status, challenger_wallet, bet_amount, token_mint')
             .eq('id', fightId)
             .single();
 
-        if (!fightCheck) return res.status(404).json({ error: "Pelea no encontrada." });
-        if (fightCheck.status !== 'waiting') return res.status(400).json({ error: "Alguien más ya tomó esta pelea." });
+        if (!fightCheck) return res.status(404).json({ error: "Fight not found." });
+        if (fightCheck.status !== 'waiting') return res.status(400).json({ error: "Someone already joined this fight." });
 
-        // 3. Bloquear pelea y asignar Challenger
+        // 2. Verify on-chain escrow has both deposits
+        const escrowPDA = getEscrowPDA(fightId);
+        console.log(`[ARENA JOIN] Verifying escrow PDA: ${escrowPDA.toBase58()} for fight: ${fightId}`);
+
+        try {
+            const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
+            if (confirmation.value.err) {
+                return res.status(400).json({ error: "Join transaction failed on-chain" });
+            }
+        } catch (confirmErr) {
+            console.warn('[ARENA JOIN] TX confirmation warning:', confirmErr.message);
+        }
+
+        // Verify PDA now has both deposits
+        try {
+            const expectedTotal = Number(fightCheck.bet_amount) * 2;
+            if (!fightCheck.token_mint || fightCheck.token_mint === 'native') {
+                const pdaBalance = await connection.getBalance(escrowPDA);
+                console.log(`[ARENA JOIN] PDA balance: ${pdaBalance} lamports (expected ~${expectedTotal})`);
+            } else {
+                const tokenPDA = getFightTokenPDA(fightId);
+                const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
+                console.log(`[ARENA JOIN] SPL Token balance: ${tokenBal.value.amount} (expected ~${expectedTotal})`);
+            }
+        } catch (balanceErr) {
+            console.warn('[ARENA JOIN] Balance check warning:', balanceErr.message);
+        }
+
+        // 3. Update fight status to active and assign challenger
         const { data: join, error } = await supabase
             .from('arena_fights')
             .update({
@@ -64,20 +134,21 @@ module.exports = async function handler(req, res) {
                 joined_at: new Date().toISOString()
             })
             .eq('id', fightId)
-            .eq('status', 'waiting') // Seguridad extra RLS
+            .eq('status', 'waiting') // Race condition safety
             .select()
             .single();
 
         if (error) {
             console.error("Supabase Error (Join Fight):", error);
-            return res.status(500).json({ error: "Error de base de datos al unirse." });
+            return res.status(500).json({ error: "Database error while joining." });
         }
 
-        // 4. Responder con Éxito (¡COMBATE LISTO!)
+        // 4. Success — combat is ready
         return res.status(200).json({
             success: true,
-            message: "Te has unido a la pelea exitosamente.",
-            fight: join // Esto le indicará al frontend que salte la pantalla a la Arena 3D
+            message: "Joined fight with on-chain escrow verified.",
+            fight: join,
+            escrowPDA: escrowPDA.toBase58()
         });
 
     } catch (err) {

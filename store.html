@@ -93,6 +93,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js"></script>
+    <script src="wallet_adapter.js"></script>
     <script src="auth_supabase.js"></script>
     <script src="lang.js"></script>
 
@@ -227,7 +228,7 @@
         // --- Daily Bonus ---
         function updateTimerDisplay() {
             if(!user) return;
-            const lastClaim = localStorage.getItem(`cp_last_claim_${user.username}`);
+            const lastClaim = localStorage.getItem(`cp_last_claim_${user.wallet_address || user.username}`);
             const btn = document.getElementById('btn-starter');
             const timerEl = document.getElementById('countdown-timer');
 
@@ -257,7 +258,7 @@
 
         function claimDailyBonus() {
             buyCredits(BONUS_AMOUNT, document.getElementById('btn-starter'), true);
-            localStorage.setItem(`cp_last_claim_${user.username}`, Date.now().toString());
+            localStorage.setItem(`cp_last_claim_${user.wallet_address || user.username}`, Date.now().toString());
             updateTimerDisplay();
         }
 
