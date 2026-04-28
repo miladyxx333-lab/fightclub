@@ -125,16 +125,37 @@ module.exports = async function handler(req, res) {
         const damage = hit ? Math.floor(baseDamage * critMultiplier) : 0;
         const counterDamage = hit ? 0 : Math.floor(baseDamage * 0.8);
 
-        // 6. Mark round as used (prevent replay)
+        // 6. Update state (HP, Turn, Last Move)
         const updatedState = { ...combatState };
         updatedState[`round_${round}_used`] = true;
         updatedState[`round_${round}_clientSeed`] = clientSeed;
         updatedState[`round_${round}_roll`] = roll;
         updatedState[`round_${round}_hit`] = hit;
+        updatedState.last_move_at = Date.now();
+
+        // Retrieve current turn to know who to damage
+        const { data: fullFight } = await supabase.from('arena_fights').select('current_turn').eq('id', fightId).single();
+        const currentTurn = fullFight?.current_turn || 'creator';
+        const nextTurn = currentTurn === 'creator' ? 'challenger' : 'creator';
+
+        // Apply damage to state
+        if (updatedState.creator_hp === undefined) updatedState.creator_hp = 100;
+        if (updatedState.challenger_hp === undefined) updatedState.challenger_hp = 100;
+
+        if (currentTurn === 'creator') {
+            if (hit) updatedState.challenger_hp = Math.max(0, updatedState.challenger_hp - damage);
+            else updatedState.creator_hp = Math.max(0, updatedState.creator_hp - counterDamage);
+        } else {
+            if (hit) updatedState.creator_hp = Math.max(0, updatedState.creator_hp - damage);
+            else updatedState.challenger_hp = Math.max(0, updatedState.challenger_hp - counterDamage);
+        }
 
         await supabase
             .from('arena_fights')
-            .update({ combat_state: updatedState })
+            .update({ 
+                combat_state: updatedState,
+                current_turn: nextTurn
+            })
             .eq('id', fightId);
 
         console.log(`[REVEAL] Fight ${fightId} Round ${round}: roll=${roll} prediction=${prediction} hit=${hit}`);

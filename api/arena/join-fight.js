@@ -92,32 +92,48 @@ module.exports = async function handler(req, res) {
         if (!fightCheck) return res.status(404).json({ error: "Fight not found." });
         if (fightCheck.status !== 'waiting') return res.status(400).json({ error: "Someone already joined this fight." });
 
-        // 2. Verify on-chain escrow has both deposits
-        const escrowPDA = getEscrowPDA(fightId);
-        console.log(`[ARENA JOIN] Verifying escrow PDA: ${escrowPDA.toBase58()} for fight: ${fightId}`);
+        // 2. Verify payment based on token_mint
+        const isCreditFight = fightCheck.token_mint === 'credits';
 
-        try {
-            const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
-            if (confirmation.value.err) {
-                return res.status(400).json({ error: "Join transaction failed on-chain" });
-            }
-        } catch (confirmErr) {
-            console.warn('[ARENA JOIN] TX confirmation warning:', confirmErr.message);
-        }
+        if (!isCreditFight) {
+            // On-chain escrow verification
+            const escrowPDA = getEscrowPDA(fightId);
+            console.log(`[ARENA JOIN] Verifying escrow PDA: ${escrowPDA.toBase58()} for fight: ${fightId}`);
 
-        // Verify PDA now has both deposits
-        try {
-            const expectedTotal = Number(fightCheck.bet_amount) * 2;
-            if (!fightCheck.token_mint || fightCheck.token_mint === 'native') {
-                const pdaBalance = await connection.getBalance(escrowPDA);
-                console.log(`[ARENA JOIN] PDA balance: ${pdaBalance} lamports (expected ~${expectedTotal})`);
-            } else {
-                const tokenPDA = getFightTokenPDA(fightId);
-                const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
-                console.log(`[ARENA JOIN] SPL Token balance: ${tokenBal.value.amount} (expected ~${expectedTotal})`);
+            try {
+                const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
+                if (confirmation.value.err) {
+                    return res.status(400).json({ error: "Join transaction failed on-chain" });
+                }
+            } catch (confirmErr) {
+                console.warn('[ARENA JOIN] TX confirmation warning:', confirmErr.message);
             }
-        } catch (balanceErr) {
-            console.warn('[ARENA JOIN] Balance check warning:', balanceErr.message);
+
+            // Verify PDA now has both deposits
+            try {
+                const expectedTotal = Number(fightCheck.bet_amount) * 2;
+                if (!fightCheck.token_mint || fightCheck.token_mint === 'native') {
+                    const pdaBalance = await connection.getBalance(escrowPDA);
+                    console.log(`[ARENA JOIN] PDA balance: ${pdaBalance} lamports (expected ~${expectedTotal})`);
+                } else {
+                    const tokenPDA = getFightTokenPDA(fightId);
+                    const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
+                    console.log(`[ARENA JOIN] SPL Token balance: ${tokenBal.value.amount} (expected ~${expectedTotal})`);
+                }
+            } catch (balanceErr) {
+                console.warn('[ARENA JOIN] Balance check warning:', balanceErr.message);
+            }
+        } else {
+            // Credits verification: Deduct credits from challenger
+            console.log(`[ARENA JOIN] Deducting credits for fight: ${fightId}`);
+            const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_credits_wallet', {
+                p_wallet: challengerWallet,
+                p_amount: fightCheck.bet_amount
+            });
+
+            if (deductError || !deductSuccess) {
+                return res.status(400).json({ error: "Insufficient credits to join this fight." });
+            }
         }
 
         // 3. Update fight status to active and assign challenger
@@ -146,9 +162,9 @@ module.exports = async function handler(req, res) {
         // 4. Success — combat is ready
         return res.status(200).json({
             success: true,
-            message: "Joined fight with on-chain escrow verified.",
+            message: isCreditFight ? "Joined fight with credits." : "Joined fight with on-chain escrow verified.",
             fight: join,
-            escrowPDA: escrowPDA.toBase58()
+            escrowPDA: isCreditFight ? null : getEscrowPDA(fightId).toBase58()
         });
 
     } catch (err) {

@@ -1,0 +1,21 @@
+{
+  "name": "simulation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "@supabase/supabase-js": "^2.98.0",
+    "bs58": "^6.0.0",
+    "crypto-js": "^4.2.0",
+    "node-fetch": "^2.7.0",
+    "uuid": "^14.0.0",
+    "ws": "^8.20.0"
+  }
+}

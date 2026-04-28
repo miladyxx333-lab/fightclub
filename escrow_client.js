@@ -29,16 +29,35 @@ class EscrowClient {
     static ATOKEN_PROGRAM_ID = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 
     constructor() {
-        if (typeof solanaWeb3 === 'undefined') {
-            throw new Error('Solana Web3 SDK not loaded. Include the CDN script first.');
+        const web3 = window.solanaWeb3 || window.solana_web3 || (typeof solanaWeb3 !== 'undefined' ? solanaWeb3 : null);
+        
+        if (!web3) {
+            console.warn('[EscrowClient] Solana Web3 SDK not found. Will retry on first use.');
+            return;
         }
 
-        const { PublicKey, Connection } = solanaWeb3;
+        const { PublicKey, Connection } = web3;
         this.programId = new PublicKey(EscrowClient.PROGRAM_ID);
         this.connection = new Connection(
             window.SOLANA_RPC || 'https://api.devnet.solana.com',
             'confirmed'
         );
+        this.initialized = true;
+    }
+
+    ensureInitialized() {
+        if (this.initialized) return true;
+        const web3 = window.solanaWeb3 || window.solana_web3 || (typeof solanaWeb3 !== 'undefined' ? solanaWeb3 : null);
+        if (!web3) return false;
+
+        const { PublicKey, Connection } = web3;
+        this.programId = new PublicKey(EscrowClient.PROGRAM_ID);
+        this.connection = new Connection(
+            window.SOLANA_RPC || 'https://api.devnet.solana.com',
+            'confirmed'
+        );
+        this.initialized = true;
+        return true;
     }
 
     // ── PDA Derivation ────────────────────────

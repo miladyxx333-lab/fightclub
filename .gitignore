@@ -9,4 +9,5 @@ cyberpollo_complete.zip
 solana-pay-server/node_modules/
 .vercel
 .env*.local
-simulation/
+simulation/node_modules/
+simulation/bot_key.json

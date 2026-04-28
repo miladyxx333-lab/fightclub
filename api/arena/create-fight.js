@@ -92,46 +92,57 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: "Missing required parameters" });
         }
 
-        // 1. Verify PDA derivation matches
-        const { pda: expectedPDA } = getEscrowPDA(fightId);
-        if (escrowPDA && expectedPDA.toBase58() !== escrowPDA) {
-            console.error(`[ARENA] PDA mismatch! Expected ${expectedPDA.toBase58()}, got ${escrowPDA}`);
-            return res.status(400).json({ error: "Escrow PDA verification failed" });
-        }
+        // 1. Payment Verification
+        const isCreditFight = tokenMint === 'credits';
 
-        // 2. Verify the transaction exists on-chain
-        console.log(`[ARENA] Verifying escrow TX: ${txSignature} for PDA: ${expectedPDA.toBase58()}`);
-        
-        try {
-            // Wait for confirmation (up to 30s)
-            const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
-            if (confirmation.value.err) {
-                return res.status(400).json({ error: "Transaction failed on-chain" });
+        if (!isCreditFight) {
+            // Verify PDA derivation matches
+            const { pda: expectedPDA } = getEscrowPDA(fightId);
+            if (escrowPDA && expectedPDA.toBase58() !== escrowPDA) {
+                console.error(`[ARENA] PDA mismatch! Expected ${expectedPDA.toBase58()}, got ${escrowPDA}`);
+                return res.status(400).json({ error: "Escrow PDA verification failed" });
             }
-        } catch (confirmErr) {
-            console.warn('[ARENA] TX confirmation check failed (may still be processing):', confirmErr.message);
-            // Don't block — the PDA balance check below is the real verification
-        }
 
-        // 3. Verify PDA has received the funds
-        try {
-            if (!req.body.tokenMint || req.body.tokenMint === 'native') {
-                const pdaBalance = await connection.getBalance(expectedPDA);
-                console.log(`[ARENA] PDA balance: ${pdaBalance} lamports (expected >= ${betAmount})`);
-                
-                if (pdaBalance < Number(betAmount)) {
-                    console.warn(`[ARENA] PDA balance ${pdaBalance} < expected ${betAmount}. May still be confirming.`);
+            // Verify the transaction exists on-chain
+            console.log(`[ARENA] Verifying escrow TX: ${txSignature} for PDA: ${expectedPDA.toBase58()}`);
+            
+            try {
+                const confirmation = await connection.confirmTransaction(txSignature, 'confirmed');
+                if (confirmation.value.err) {
+                    return res.status(400).json({ error: "Transaction failed on-chain" });
                 }
-            } else {
-                const { pda: tokenPDA } = getFightTokenPDA(fightId);
-                const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
-                console.log(`[ARENA] SPL Token balance: ${tokenBal.value.amount} (expected >= ${betAmount})`);
-                if (Number(tokenBal.value.amount) < Number(betAmount)) {
-                    console.warn(`[ARENA] SPL balance ${tokenBal.value.amount} < expected. May still be confirming.`);
-                }
+            } catch (confirmErr) {
+                console.warn('[ARENA] TX confirmation check failed:', confirmErr.message);
             }
-        } catch (balanceErr) {
-            console.warn('[ARENA] Balance check warning:', balanceErr.message);
+
+            // Verify PDA has received the funds
+            try {
+                if (!tokenMint || tokenMint === 'native') {
+                    const pdaBalance = await connection.getBalance(expectedPDA);
+                    if (pdaBalance < Number(betAmount)) {
+                        console.warn(`[ARENA] PDA balance ${pdaBalance} < expected ${betAmount}.`);
+                    }
+                } else {
+                    const { pda: tokenPDA } = getFightTokenPDA(fightId);
+                    const tokenBal = await connection.getTokenAccountBalance(tokenPDA);
+                    if (Number(tokenBal.value.amount) < Number(betAmount)) {
+                        console.warn(`[ARENA] SPL balance ${tokenBal.value.amount} < expected.`);
+                    }
+                }
+            } catch (balanceErr) {
+                console.warn('[ARENA] Balance check warning:', balanceErr.message);
+            }
+        } else {
+            // Credits mode: Deduct from user wallet
+            console.log(`[ARENA] Deducting credits for fight creation: ${fightId}`);
+            const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_credits_wallet', {
+                p_wallet: creatorWallet,
+                p_amount: betAmount
+            });
+
+            if (deductError || !deductSuccess) {
+                return res.status(400).json({ error: "Insufficient credits to create this fight." });
+            }
         }
 
         // 4. Insert fight record into Supabase with the client-provided fight ID
@@ -162,9 +173,9 @@ module.exports = async function handler(req, res) {
         // 5. Respond with success
         return res.status(200).json({
             success: true,
-            message: "Fight created with on-chain escrow",
+            message: isCreditFight ? "Fight created with credits" : "Fight created with on-chain escrow",
             fight: fight,
-            escrowPDA: expectedPDA.toBase58()
+            escrowPDA: isCreditFight ? null : getEscrowPDA(fightId).pda.toBase58()
         });
 
     } catch (err) {

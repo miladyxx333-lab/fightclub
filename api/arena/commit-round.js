@@ -105,14 +105,21 @@ module.exports = async function handler(req, res) {
 
         // Also persist to Supabase for cross-instance access
         // (Vercel serverless functions may not share memory)
+        const combatState = fight.combat_state || {};
+        
+        // Initialize HP if not present
+        if (combatState.creator_hp === undefined) combatState.creator_hp = 100;
+        if (combatState.challenger_hp === undefined) combatState.challenger_hp = 100;
+
         await supabase
             .from('arena_fights')
             .update({
                 combat_state: {
-                    ...(fight.combat_state || {}),
+                    ...combatState,
                     [`round_${round}_commitment`]: commitment,
                     [`round_${round}_seed`]: serverSeed,
                     [`round_${round}_used`]: false,
+                    last_move_at: Date.now()
                 }
             })
             .eq('id', fightId);

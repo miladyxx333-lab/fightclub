@@ -60,6 +60,23 @@ class ArenaCombat {
         if (this.isMyTurn) {
             await this.requestNewCommitment();
         }
+
+        // Check for NFT bonus
+        this.updateNFTBonus();
+    }
+
+    async updateNFTBonus() {
+        if (window.solanaWallet && solanaWallet.address) {
+            const { data, error } = await supabase
+                .from('user_inventory')
+                .select('pollo_id')
+                .eq('wallet_address', solanaWallet.address);
+            
+            if (!error && data) {
+                localStorage.setItem('cp_nft_count', data.length);
+                console.log(`[ARENA] NFT Bonus updated: ${data.length} KillPollos found.`);
+            }
+        }
     }
 
     async loadFight() {
@@ -76,6 +93,14 @@ class ArenaCombat {
         }
 
         this.fight = data;
+
+        // Restore HP from DB state if available
+        if (data.combat_state) {
+            const isCreator = this.role === 'creator';
+            this.playerHP = isCreator ? (data.combat_state.creator_hp ?? 100) : (data.combat_state.challenger_hp ?? 100);
+            this.opponentHP = isCreator ? (data.combat_state.challenger_hp ?? 100) : (data.combat_state.creator_hp ?? 100);
+            this.round = data.combat_state.round || 1;
+        }
     }
 
     cacheDOM() {
@@ -186,6 +211,9 @@ class ArenaCombat {
         this.channel
             .on('broadcast', { event: 'turn_result' }, (payload) => {
                 this.handleOpponentTurn(payload.payload);
+            })
+            .on('broadcast', { event: 'timeout_penalty' }, (payload) => {
+                this.handleTimeoutPenalty(payload.payload);
             })
             .on('broadcast', { event: 'fight_over' }, (payload) => {
                 this.handleFightOver(payload.payload);
@@ -425,6 +453,41 @@ class ArenaCombat {
         }
     }
 
+    // ── Handle Timeout Penalty ────────────────
+    handleTimeoutPenalty(data) {
+        const isCreator = this.role === 'creator';
+        const penalizedMe = (data.penalizedRole === this.role);
+
+        if (penalizedMe) {
+            this.playerHP = data.hp[this.role];
+            this.battleLog.textContent = '⏱️ TIMEOUT! You lost 20 HP for being too slow.';
+            this.battleLog.style.color = '#ff073a';
+            this.shakeElement('p2p-player-side');
+        } else {
+            this.opponentHP = data.hp[data.penalizedRole];
+            this.battleLog.textContent = `🛡️ TIMEOUT! Opponent lost 20 HP. It's your turn!`;
+            this.battleLog.style.color = '#39ff14';
+            this.shakeElement('p2p-opponent-side');
+        }
+
+        this.updateHPUI();
+        
+        // If it's now my turn, update UI and request commitment
+        if (data.nextTurn === this.role) {
+            this.isMyTurn = true;
+            this.updateTurnIndicator();
+            this.requestNewCommitment();
+        } else {
+            this.isMyTurn = false;
+            this.updateTurnIndicator();
+        }
+
+        // Check if game over
+        if (this.playerHP <= 0 || this.opponentHP <= 0) {
+            this.endFight();
+        }
+    }
+
     // ── End Fight ─────────────────────────────
     async endFight() {
         this.fightOver = true;
@@ -449,8 +512,19 @@ class ArenaCombat {
             if (resultMsg) {
                 const totalPot = this.fight.bet_amount * 2;
                 const fee = Math.floor(totalPot * 0.03);
-                const payout = totalPot - fee;
-                resultMsg.textContent = `You won ${this.fight.bet_amount_display}! (minus 3% fee) — Provably Fair ✓`;
+                let payout = totalPot - fee;
+
+                // NFT Holder Bonus (0.5% per NFT)
+                const nftCount = parseInt(localStorage.getItem('cp_nft_count') || '0');
+                let bonusMsg = "";
+                if (nftCount > 0) {
+                    const bonusMultiplier = nftCount * 0.005; // 0.5% = 0.005
+                    const bonus = Math.floor(payout * bonusMultiplier);
+                    payout += bonus;
+                    bonusMsg = ` (+${(bonusMultiplier * 100).toFixed(1)}% NFT Bonus: ${bonus} CRD)`;
+                }
+
+                resultMsg.textContent = `You won ${payout} Credits!${bonusMsg} — Provably Fair ✓`;
             }
         } else {
             if (resultTitle) {

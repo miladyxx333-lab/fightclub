@@ -130,83 +130,97 @@ module.exports = async function handler(req, res) {
         console.log(`[ARENA PAYOUT] Resolving Fight: ${fightId}`);
         console.log(`[ARENA PAYOUT] Total Pot: ${totalPot} lamports | Fee: ${feeAmount} | Payout: ${payoutAmount} to ${winnerWallet}`);
 
-        let payoutTxSignature = "simulated_tx_signature_for_mvp";
+        // 3. Execute payout based on token_mint
+        const isCreditFight = fight.token_mint === 'credits';
 
-        // 3. Execute on-chain resolve via Anchor program
-        if (AUTHORITY_PRIVATE_KEY_B58) {
-            try {
-                const authorityKeypair = Keypair.fromSecretKey(bs58.decode(AUTHORITY_PRIVATE_KEY_B58));
-                const { pda: escrowPDA } = getEscrowPDA(fightId);
-                const programId = new PublicKey(PROGRAM_ID);
+        if (!isCreditFight) {
+            if (AUTHORITY_PRIVATE_KEY_B58) {
+                try {
+                    const authorityKeypair = Keypair.fromSecretKey(bs58.decode(AUTHORITY_PRIVATE_KEY_B58));
+                    const { pda: escrowPDA } = getEscrowPDA(fightId);
+                    const programId = new PublicKey(PROGRAM_ID);
 
-                // winner_role: 0 = creator, 1 = challenger
-                const winnerRoleNum = winnerRole === 'creator' ? 0 : 1;
+                    // winner_role: 0 = creator, 1 = challenger
+                    const winnerRoleNum = winnerRole === 'creator' ? 0 : 1;
 
-                let instruction;
+                    let instruction;
 
-                if (fight.token_mint === 'native' || fight.token_symbol === 'SOL') {
-                    // Build resolve_fight instruction data: discriminator (8) + winner_role (1)
-                    const data = Buffer.alloc(9);
-                    RESOLVE_DISCRIMINATOR.copy(data, 0);
-                    data.writeUInt8(winnerRoleNum, 8);
+                    if (fight.token_mint === 'native' || fight.token_symbol === 'SOL') {
+                        // Build resolve_fight instruction data: discriminator (8) + winner_role (1)
+                        const data = Buffer.alloc(9);
+                        RESOLVE_DISCRIMINATOR.copy(data, 0);
+                        data.writeUInt8(winnerRoleNum, 8);
 
-                    instruction = new TransactionInstruction({
-                        keys: [
-                            { pubkey: escrowPDA, isSigner: false, isWritable: true },        // escrow
-                            { pubkey: authorityKeypair.publicKey, isSigner: true, isWritable: true },  // authority
-                            { pubkey: new PublicKey(fight.creator_wallet), isSigner: false, isWritable: true },   // creator
-                            { pubkey: new PublicKey(fight.challenger_wallet), isSigner: false, isWritable: true }, // challenger
-                            { pubkey: new PublicKey(FEE_COLLECTOR), isSigner: false, isWritable: true },          // fee_collector
-                            { pubkey: new PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }, // system_program
-                        ],
-                        programId,
-                        data,
-                    });
-                } else {
-                    // Build resolve_fight_spl instruction
-                    const data = Buffer.alloc(9);
-                    RESOLVE_SPL_DISCRIMINATOR.copy(data, 0);
-                    data.writeUInt8(winnerRoleNum, 8);
+                        instruction = new TransactionInstruction({
+                            keys: [
+                                { pubkey: escrowPDA, isSigner: false, isWritable: true },        // escrow
+                                { pubkey: authorityKeypair.publicKey, isSigner: true, isWritable: true },  // authority
+                                { pubkey: new PublicKey(fight.creator_wallet), isSigner: false, isWritable: true },   // creator
+                                { pubkey: new PublicKey(fight.challenger_wallet), isSigner: false, isWritable: true }, // challenger
+                                { pubkey: new PublicKey(FEE_COLLECTOR), isSigner: false, isWritable: true },          // fee_collector
+                                { pubkey: new PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }, // system_program
+                            ],
+                            programId,
+                            data,
+                        });
+                    } else {
+                        // Build resolve_fight_spl instruction
+                        const data = Buffer.alloc(9);
+                        RESOLVE_SPL_DISCRIMINATOR.copy(data, 0);
+                        data.writeUInt8(winnerRoleNum, 8);
 
-                    const { pda: escrowTokenPDA } = getFightTokenPDA(fightId);
-                    const creatorATA = getAssociatedTokenAddress(fight.creator_wallet, fight.token_mint);
-                    const challengerATA = getAssociatedTokenAddress(fight.challenger_wallet, fight.token_mint);
-                    const feeCollectorATA = getAssociatedTokenAddress(FEE_COLLECTOR, fight.token_mint);
+                        const { pda: escrowTokenPDA } = getFightTokenPDA(fightId);
+                        const creatorATA = getAssociatedTokenAddress(fight.creator_wallet, fight.token_mint);
+                        const challengerATA = getAssociatedTokenAddress(fight.challenger_wallet, fight.token_mint);
+                        const feeCollectorATA = getAssociatedTokenAddress(FEE_COLLECTOR, fight.token_mint);
 
-                    instruction = new TransactionInstruction({
-                        keys: [
-                            { pubkey: escrowPDA, isSigner: false, isWritable: true },
-                            { pubkey: authorityKeypair.publicKey, isSigner: true, isWritable: true },
-                            { pubkey: escrowTokenPDA, isSigner: false, isWritable: true },
-                            { pubkey: creatorATA, isSigner: false, isWritable: true },
-                            { pubkey: challengerATA, isSigner: false, isWritable: true },
-                            { pubkey: feeCollectorATA, isSigner: false, isWritable: true },
-                            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-                        ],
-                        programId,
-                        data,
-                    });
+                        instruction = new TransactionInstruction({
+                            keys: [
+                                { pubkey: escrowPDA, isSigner: false, isWritable: true },
+                                { pubkey: authorityKeypair.publicKey, isSigner: true, isWritable: true },
+                                { pubkey: escrowTokenPDA, isSigner: false, isWritable: true },
+                                { pubkey: creatorATA, isSigner: false, isWritable: true },
+                                { pubkey: challengerATA, isSigner: false, isWritable: true },
+                                { pubkey: feeCollectorATA, isSigner: false, isWritable: true },
+                                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                            ],
+                            programId,
+                            data,
+                        });
+                    }
+
+                    const transaction = new Transaction().add(instruction);
+
+                    payoutTxSignature = await sendAndConfirmTransaction(
+                        connection,
+                        transaction,
+                        [authorityKeypair],
+                        { commitment: 'confirmed', maxRetries: 3 }
+                    );
+
+                    console.log(`[ARENA PAYOUT] On-chain resolve TX: ${payoutTxSignature}`);
+
+                } catch (txError) {
+                    console.error("[ARENA PAYOUT] Error resolving fight on-chain:", txError);
+                    return res.status(500).json({ error: "Blockchain error resolving fight. Please retry payout.", details: txError.message });
                 }
-
-                const transaction = new Transaction().add(instruction);
-
-                payoutTxSignature = await sendAndConfirmTransaction(
-                    connection,
-                    transaction,
-                    [authorityKeypair],
-                    { commitment: 'confirmed', maxRetries: 3 }
-                );
-
-                console.log(`[ARENA PAYOUT] On-chain resolve TX: ${payoutTxSignature}`);
-
-            } catch (txError) {
-                console.error("[ARENA PAYOUT] Error resolving fight on-chain:", txError);
-                // Do not update DB status if TX functionally failed!
-                // We return 500 so the client can show a manual "Retry Payout" button.
-                return res.status(500).json({ error: "Blockchain error resolving fight. Please retry payout.", details: txError.message });
+            } else {
+                console.warn("[ARENA PAYOUT] MERCHANT_PRIVATE_KEY not set. Simulating payout...");
+                payoutTxSignature = "simulated_onchain_tx";
             }
         } else {
-            console.warn("[ARENA PAYOUT] MERCHANT_PRIVATE_KEY not set. Simulating payout...");
+            // Credits Payout: Add credits to winner
+            console.log(`[ARENA PAYOUT] Paying out credits to ${winnerWallet}: ${payoutAmount}`);
+            const { data: addSuccess, error: addError } = await supabase.rpc('add_credits_wallet', {
+                p_wallet: winnerWallet,
+                p_amount: payoutAmount
+            });
+
+            if (addError || !addSuccess) {
+                console.error("[ARENA PAYOUT] Error adding credits to winner:", addError);
+                return res.status(500).json({ error: "Database error during credit payout." });
+            }
+            payoutTxSignature = "internal_credits_payout_" + Date.now();
         }
 
         // 4. Update database
@@ -255,7 +269,7 @@ module.exports = async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
-            message: "Fight resolved via on-chain escrow.",
+            message: isCreditFight ? "Fight resolved with credits payout." : "Fight resolved via on-chain escrow.",
             payoutTx: payoutTxSignature
         });
 

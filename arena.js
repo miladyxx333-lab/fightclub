@@ -19,6 +19,7 @@ class ArenaLobby {
         this.fighterPage = 1;
         this.fighterPageSize = 4;
         this.realtimeChannel = null;
+        this.modalMode = 'create'; // 'create' or 'join'
 
         this.init();
     }
@@ -74,6 +75,8 @@ class ArenaLobby {
                 alert('Connect your wallet first!');
                 return;
             }
+            this.modalMode = 'create';
+            this.resetCreateModal();
             this.createModal.classList.remove('hidden');
         });
 
@@ -82,8 +85,8 @@ class ArenaLobby {
             this.createModal.classList.add('hidden');
         });
 
-        // Confirm create fight
-        this.createFightBtn?.addEventListener('click', () => this.createFight());
+        // Confirm create/join fight
+        this.createFightBtn?.addEventListener('click', () => this.handleConfirmClick());
 
         // Bet amount change
         this.betAmountInput?.addEventListener('input', () => this.updateFeePreview());
@@ -325,15 +328,16 @@ class ArenaLobby {
             alert('Select a fighter first!');
             return;
         }
-        if (!escrow) {
+        const tokenSymbol = this.tokenInput?.value.trim().toUpperCase() || 'SOL';
+        const isCreditFight = tokenSymbol === 'CREDITS' || tokenSymbol === 'CRD';
+
+        if (!isCreditFight && (!escrow || !escrow.ensureInitialized())) {
             alert('Escrow client not initialized. Reload the page.');
             return;
         }
 
-        const tokenSymbol = this.tokenInput?.value.trim().toUpperCase() || 'SOL';
         const betAmount = parseFloat(this.betAmountInput?.value) || 0;
-
-        const decimals = tokenSymbol === 'USDC' ? 6 : (tokenSymbol === 'BONK' ? 5 : 9);
+        const decimals = isCreditFight ? 0 : (tokenSymbol === 'USDC' ? 6 : (tokenSymbol === 'BONK' ? 5 : 9));
 
         if (betAmount <= 0) {
             alert('Enter a valid bet amount!');
@@ -352,33 +356,36 @@ class ArenaLobby {
             // Authority = the backend's resolution wallet (house wallet for now)
             const AUTHORITY_PUBKEY = CONFIG.AUTHORITY_PUBKEY;
 
-            let tx;
-            if (tokenSymbol === 'SOL') {
-                // 1. Build the Anchor create_fight transaction for Native SOL
-                tx = await escrow.buildCreateFightTx(
-                    fightId,
-                    rawAmount,
-                    wallet.publicKey,
-                    AUTHORITY_PUBKEY
-                );
-            } else {
-                // 1. Build SPL Token transaction
-                const mintAddress = CONFIG.TOKEN_MINTS[tokenSymbol];
-                tx = await escrow.buildCreateFightSplTx(
-                    fightId,
-                    rawAmount,
-                    wallet.publicKey,
-                    AUTHORITY_PUBKEY,
-                    mintAddress
-                );
+            let txSignature = 'credits_internal_tx';
+
+            if (!isCreditFight) {
+                let tx;
+                if (tokenSymbol === 'SOL') {
+                    // 1. Build the Anchor create_fight transaction for Native SOL
+                    tx = await escrow.buildCreateFightTx(
+                        fightId,
+                        rawAmount,
+                        wallet.publicKey,
+                        AUTHORITY_PUBKEY
+                    );
+                } else {
+                    // 1. Build SPL Token transaction
+                    const mintAddress = CONFIG.TOKEN_MINTS[tokenSymbol];
+                    tx = await escrow.buildCreateFightSplTx(
+                        fightId,
+                        rawAmount,
+                        wallet.publicKey,
+                        AUTHORITY_PUBKEY,
+                        mintAddress
+                    );
+                }
+
+                this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
+
+                // 2. Sign and send via wallet
+                txSignature = await wallet.signAndSendTransaction(tx);
+                this.createFightBtn.textContent = 'Confirming on-chain...';
             }
-
-            this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
-
-            // 2. Sign and send via wallet
-            const txSignature = await wallet.signAndSendTransaction(tx);
-
-            this.createFightBtn.textContent = 'Confirming on-chain...';
 
             // 3. Register fight in Supabase (backend)
             const response = await fetch('/api/arena/create-fight', {
@@ -386,17 +393,17 @@ class ArenaLobby {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     txSignature: txSignature,
-                    fightId: fightId, // Pass the PDA fight ID
+                    fightId: fightId, 
                     creatorWallet: wallet.publicKey,
                     username: wallet.getShortAddress(),
                     fighterId: this.selectedFighter.id.toString(),
                     fighterName: this.selectedFighter.name,
                     fighterImage: this.selectedFighter.image,
-                    tokenMint: tokenSymbol === 'SOL' ? 'native' : CONFIG.TOKEN_MINTS[tokenSymbol],
+                    tokenMint: isCreditFight ? 'credits' : (tokenSymbol === 'SOL' ? 'native' : CONFIG.TOKEN_MINTS[tokenSymbol]),
                     tokenSymbol: tokenSymbol,
-                    betAmount: rawAmount,
+                    betAmount: isCreditFight ? betAmount : rawAmount,
                     betDisplay: `${betAmount} ${tokenSymbol}`,
-                    escrowPDA: escrow.getFightPDA(fightId).pda.toBase58(),
+                    escrowPDA: isCreditFight ? null : escrow.getFightPDA(fightId).pda.toBase58(),
                 })
             });
 
@@ -406,8 +413,9 @@ class ArenaLobby {
             this.createModal.classList.add('hidden');
             this.selectedFighter = null;
 
-            // Show success with on-chain confirmation
-            this.showToast(`⚔️ Fight created on-chain! PDA: ${escrow.getFightPDA(fightId).pda.toBase58().slice(0,8)}...`, 'success');
+            // Show success
+            const msg = isCreditFight ? '⚔️ Joined fight with credits!' : `⚔️ Fight joined on-chain! PDA: ${escrow.getFightPDA(fightId).pda.toBase58().slice(0,8)}...`;
+            this.showToast(msg, 'success');
 
         } catch (err) {
             console.error('Error creating fight:', err);
@@ -435,6 +443,7 @@ class ArenaLobby {
         this.joiningFight = fight;
 
         // Reuse create modal but change context
+        this.modalMode = 'join';
         document.getElementById('create-modal-title').textContent = '⚔️ JOIN FIGHT';
         document.getElementById('token-select-section').classList.add('hidden');
         document.getElementById('bet-section').classList.add('hidden');
@@ -448,13 +457,24 @@ class ArenaLobby {
         `;
 
         this.createFightBtn.textContent = '⚔️ JOIN & FIGHT';
-        this.createFightBtn.onclick = () => this.joinFight();
         this.createModal.classList.remove('hidden');
+    }
+
+    handleConfirmClick() {
+        if (this.modalMode === 'join') {
+            this.joinFight();
+        } else {
+            this.createFight();
+        }
     }
 
     async joinFight() {
         if (!this.selectedFighter || !this.joiningFightId) return;
-        if (!escrow) {
+        
+        const fight = this.joiningFight;
+        const isCreditFight = fight.token_mint === 'credits';
+
+        if (!isCreditFight && (!escrow || !escrow.ensureInitialized())) {
             alert('Escrow client not initialized. Reload the page.');
             return;
         }
@@ -465,22 +485,24 @@ class ArenaLobby {
         try {
             // The joiningFightId is the Supabase UUID, which is also the PDA seed
             const fightId = this.joiningFightId;
-            const fight = this.joiningFight;
 
-            let tx;
-            if (fight.token_symbol === 'SOL' || fight.token_mint === 'native') {
-                // 1. Build the Anchor join_fight transaction
-                tx = await escrow.buildJoinFightTx(fightId, wallet.publicKey);
-            } else {
-                tx = await escrow.buildJoinFightSplTx(fightId, wallet.publicKey, fight.token_mint);
+            let txSignature = 'credits_internal_tx';
+
+            if (!isCreditFight) {
+                let tx;
+                if (fight.token_symbol === 'SOL' || fight.token_mint === 'native') {
+                    // 1. Build the Anchor join_fight transaction
+                    tx = await escrow.buildJoinFightTx(fightId, wallet.publicKey);
+                } else {
+                    tx = await escrow.buildJoinFightSplTx(fightId, wallet.publicKey, fight.token_mint);
+                }
+
+                this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
+
+                // 2. Sign and send via wallet
+                txSignature = await wallet.signAndSendTransaction(tx);
+                this.createFightBtn.textContent = 'Confirming on-chain...';
             }
-
-            this.createFightBtn.textContent = 'Awaiting Wallet Approval...';
-
-            // 2. Sign and send via wallet
-            const txSignature = await wallet.signAndSendTransaction(tx);
-
-            this.createFightBtn.textContent = 'Confirming on-chain...';
 
             // 3. Contact Backend API to update fight status
             const response = await fetch('/api/arena/join-fight', {
@@ -522,7 +544,7 @@ class ArenaLobby {
         document.getElementById('bet-section')?.classList.remove('hidden');
         document.getElementById('join-info')?.classList.add('hidden');
         this.createFightBtn.textContent = '⚔️ CREATE FIGHT';
-        this.createFightBtn.onclick = () => this.createFight();
+        this.modalMode = 'create';
         this.joiningFightId = null;
         this.joiningFight = null;
     }
