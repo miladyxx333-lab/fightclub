@@ -95,7 +95,10 @@ async function createFightChallenge() {
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     }]);
 
-    if (!error) {
+    if (error) {
+        console.error(`[BOT] Error creating fight:`, error.message);
+    } else {
+        console.log(`[BOT] Fight ${fightId} created successfully.`);
         currentFightId = fightId;
         botRole = 'creator';
     }
@@ -213,16 +216,22 @@ async function main() {
 
     const botAddress = botKey.publicKey.toBase58();
     
-    // Resume active fights
-    const { data: actives } = await supabase.from('arena_fights').select('*')
-        .eq('status', 'active')
+    // Resume active or waiting fights
+    const { data: resumes } = await supabase.from('arena_fights').select('*')
+        .in('status', ['active', 'waiting'])
         .or(`creator_wallet.eq.${botAddress},challenger_wallet.eq.${botAddress}`);
     
-    if (actives) {
-        for (const f of actives) {
-            botRole = (f.creator_wallet === botAddress) ? 'creator_active' : 'challenger';
-            currentFightId = f.id;
-            startCombatLoop(f.id);
+    if (resumes) {
+        for (const f of resumes) {
+            if (f.status === 'active') {
+                botRole = (f.creator_wallet === botAddress) ? 'creator_active' : 'challenger';
+                currentFightId = f.id;
+                startCombatLoop(f.id);
+            } else if (f.status === 'waiting' && f.creator_wallet === botAddress) {
+                console.log(`[BOT] Adopting existing waiting fight: ${f.id}`);
+                currentFightId = f.id;
+                botRole = 'creator';
+            }
         }
     }
 
