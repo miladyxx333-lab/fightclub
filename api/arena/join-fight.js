@@ -147,6 +147,7 @@ module.exports = async function handler(req, res) {
                 challenger_fighter_image: fighterImage,
                 challenger_deposit_tx: txSignature,
                 status: 'active',
+                current_turn: 'creator',
                 joined_at: new Date().toISOString()
             })
             .eq('id', fightId)

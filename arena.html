@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="arena.css">
+    <link rel="stylesheet" href="style.css?v=1.1">
+    <link rel="stylesheet" href="arena.css?v=1.1">
 </head>
 
 <body>
@@ -66,9 +66,14 @@
                     <span class="stat-label">🏆 Winner Takes All</span>
                     <span class="stat-value" style="color:#39ff14;">97%</span>
                 </div>
-                <button id="open-create-fight" class="create-fight-btn">
-                    + CREATE FIGHT
-                </button>
+                <div style="display:flex; gap:10px; visibility: visible !important;">
+                    <button id="summon-bot-btn" class="summon-bot-btn" style="display: block !important;">
+                        🤖 CHALLENGE BOT
+                    </button>
+                    <button id="open-create-fight" class="create-fight-btn">
+                        + CREATE FIGHT
+                    </button>
+                </div>
             </div>
 
             <!-- Filter Tabs -->

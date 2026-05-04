@@ -15,6 +15,7 @@ class ArenaCombat {
         this.playerMaxHP = 100;
         this.opponentHP = 100;
         this.opponentMaxHP = 100;
+        this.appContainer = null;
         this.isMyTurn = false;
         this.round = 1;
         this.baseDamage = 20;
@@ -129,6 +130,7 @@ class ArenaCombat {
         this.betInfoEl = document.getElementById('p2p-bet-info');
         this.serverSeedDisplay = document.getElementById('p2p-server-seed');
         this.clientSeedInput = document.getElementById('p2p-client-seed');
+        this.appContainer = document.querySelector('.app-container');
 
         // Verification panel — inject after seeds section
         this.verifyPanel = document.createElement('div');
@@ -325,11 +327,13 @@ class ArenaCombat {
                 this.battleLog.textContent = `💥 HIT! ${result.damage} damage! [Roll: ${result.roll}] ✓ Verified`;
                 this.battleLog.style.color = '#39ff14';
                 this.shakeElement('p2p-opponent-side');
+                this.triggerFlash();
             } else {
                 this.playerHP = Math.max(0, this.playerHP - result.counterDamage);
                 this.battleLog.textContent = `😵 MISS! Take ${result.counterDamage} damage [Roll: ${result.roll}] ✓ Verified`;
                 this.battleLog.style.color = '#ff073a';
                 this.shakeElement('p2p-player-side');
+                this.triggerScreenShake();
             }
 
             this.updateHPUI();
@@ -422,11 +426,13 @@ class ArenaCombat {
             this.battleLog.textContent = `😵 Opponent hits for ${data.damage}! [Roll: ${data.roll}] ✓ Verified`;
             this.battleLog.style.color = '#ff073a';
             this.shakeElement('p2p-player-side');
+            this.triggerScreenShake();
         } else {
             this.opponentHP = Math.max(0, this.opponentHP - data.counterDamage);
             this.battleLog.textContent = `🛡️ Opponent missed! Counter ${data.counterDamage}! [Roll: ${data.roll}] ✓ Verified`;
             this.battleLog.style.color = '#39ff14';
             this.shakeElement('p2p-opponent-side');
+            this.triggerFlash();
         }
 
         this.round = data.round || this.round + 1;
@@ -626,6 +632,18 @@ class ArenaCombat {
         if (this.battleLog) {
             this.battleLog.textContent = msg;
         }
+    }
+
+    triggerFlash() {
+        if (!this.appContainer) return;
+        this.appContainer.classList.add('flash-hit');
+        setTimeout(() => this.appContainer.classList.remove('flash-hit'), 300);
+    }
+
+    triggerScreenShake() {
+        if (!this.appContainer) return;
+        this.appContainer.classList.add('shake');
+        setTimeout(() => this.appContainer.classList.remove('shake'), 400);
     }
 
     sleep(ms) {

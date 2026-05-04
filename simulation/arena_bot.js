@@ -19,17 +19,21 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const PROGRAM_ID = 'FiGHt1111111111111111111111111111111111111';
 const API_BASE = process.env.API_BASE || 'https://www.fightclub.wtf';
 const GITHUB_IMAGES_BASE = 'https://raw.githubusercontent.com/miladyxx333-lab/fightclub/main/assets/images/';
+const IDLE_TIMEOUT_MS = 1000 * 60; // 1 minute idle limit
+let lastActivity = Date.now();
 
 // --- Bot Identity ---
 let botKey;
 try {
     const fs = require('fs');
-    if (fs.existsSync('./bot_key.json')) {
-        const secret = JSON.parse(fs.readFileSync('./bot_key.json'));
+    const path = require('path');
+    const keyPath = path.join(__dirname, 'bot_key.json');
+    if (fs.existsSync(keyPath)) {
+        const secret = JSON.parse(fs.readFileSync(keyPath));
         botKey = Keypair.fromSecretKey(Uint8Array.from(secret));
     } else {
         botKey = Keypair.generate();
-        fs.writeFileSync('./bot_key.json', JSON.stringify(Array.from(botKey.secretKey)));
+        fs.writeFileSync(keyPath, JSON.stringify(Array.from(botKey.secretKey)));
     }
 } catch (e) {
     botKey = Keypair.generate();
@@ -141,16 +145,6 @@ async function startCombatLoop(fightId) {
     });
 
     activeChannels.set(fightId, channel);
-
-    // Resend Round 1 if human hasn't responded (for persistence/refreshes)
-    const resendInterval = setInterval(() => {
-        if (currentFightId === fightId && botRole && botRole.startsWith('creator')) {
-            console.log(`[BOT] Resending round 1 move...`);
-            makeMove(fightId, 1);
-        } else {
-            clearInterval(resendInterval);
-        }
-    }, 15000);
 }
 
 async function makeMove(fightId, round) {
@@ -216,7 +210,21 @@ async function main() {
 
     const botAddress = botKey.publicKey.toBase58();
     
-    // Resume active or waiting fights
+    // --- STAGE 0: CLEAN SLATE ---
+    // Cancel any previous stuck fights from this bot to avoid "ghost" matches
+    console.log("[BOT] Cleaning up old sessions...");
+    const { data: oldFights } = await supabase.from('arena_fights').select('id')
+        .in('status', ['active', 'waiting'])
+        .eq('creator_wallet', botAddress);
+    
+    if (oldFights && oldFights.length > 0) {
+        for (const f of oldFights) {
+            await supabase.from('arena_fights').update({ status: 'cancelled' }).eq('id', f.id);
+        }
+        console.log(`[BOT] Purged ${oldFights.length} dangling fights.`);
+    }
+
+    // --- STAGE 1: Realtime Watcher ---
     const { data: resumes } = await supabase.from('arena_fights').select('*')
         .in('status', ['active', 'waiting'])
         .or(`creator_wallet.eq.${botAddress},challenger_wallet.eq.${botAddress}`);
@@ -235,6 +243,33 @@ async function main() {
         }
     }
 
+    // 3. Global Watcher: React instantly to new fights or status changes
+    supabase.channel('global_arena')
+        .on('postgres_changes', { event: '*', table: 'arena_fights' }, async (payload) => {
+            const f = payload.new;
+            if (!f) return;
+
+            // If I'm ALREADY in a fight, ignore other events
+            if (currentFightId && currentFightId !== f.id) return;
+
+            // If someone joined MY fight, start combat IMMEDIATELY
+            if (f.status === 'active' && f.creator_wallet === botAddress) {
+                if (currentFightId !== f.id) {
+                    console.log(`[BOT] ⚡ Opponent detected! Fight ${f.id} is now ACTIVE.`);
+                    currentFightId = f.id;
+                    botRole = 'creator_active';
+                    startCombatLoop(f.id);
+                }
+            }
+            
+            // If there's a new waiting fight and I'm idle, try to join instantly
+            if (f.status === 'waiting' && f.creator_wallet !== botAddress && !currentFightId) {
+                console.log(`[BOT] ⚡ New challenge detected: ${f.id}. Joining...`);
+                await joinHumanFight(f);
+            }
+        })
+        .subscribe();
+
     while (Date.now() - startTime < LIFETIME_MS) {
         try {
             sessionUser = await botAuth();
@@ -243,20 +278,32 @@ async function main() {
             if (!currentFightId) {
                 // Try to join or create
                 const { data: waiting } = await supabase.from('arena_fights').select('*').eq('status', 'waiting').limit(5);
-                const humanFight = (waiting || []).find(f => f.creator_wallet !== botAddress);
+                const humanFight = (waiting || []).find(f => 
+                    f.creator_wallet !== botAddress && 
+                    f.creator_username !== "Agent_Matrix"
+                );
                 if (humanFight) await joinHumanFight(humanFight);
                 else await createFightChallenge();
             } else {
                 // Monitor current fight
-                const { data: fight } = await supabase.from('arena_fights').select('*').eq('id', currentFightId).single();
+                const { data: fight, error: fetchError } = await supabase.from('arena_fights').select('*').eq('id', currentFightId).single();
                 
+                if (fetchError) {
+                    console.error(`[BOT] Error fetching current fight:`, fetchError.message);
+                    await sleep(5000);
+                    continue;
+                }
+
                 if (fight) {
                     if (fight.status === 'active') {
                         // Check if it's my turn based on DB state (Source of Truth)
                         const myRole = (fight.creator_wallet === botAddress) ? 'creator' : 'challenger';
                         const opponentRole = myRole === 'creator' ? 'challenger' : 'creator';
                         
-                        if (fight.current_turn === myRole) {
+                        // Treat NULL as creator's turn (beginning of fight)
+                        const turn = fight.current_turn || 'creator';
+                        
+                        if (turn === myRole) {
                             // Determine current round
                             const round = fight.combat_state ? (fight.combat_state.round || 1) : 1;
                             console.log(`[BOT] Persistent Turn Check: My turn (${myRole}) in round ${round}. Triggering move...`);
@@ -272,8 +319,8 @@ async function main() {
                             const lastMoveAt = combatState.last_move_at || new Date(fight.joined_at || fight.created_at).getTime();
                             const elapsed = Date.now() - lastMoveAt;
 
-                            if (elapsed > 40000) { // 40s buffer (API is 30s)
-                                console.log(`[BOT] Opponent (${opponentRole}) is slow. Triggering timeout penalty...`);
+                            if (elapsed > 35000) { // 35s buffer (API is 30s)
+                                console.log(`[BOT] Opponent (${opponentRole}) is slow (${Math.round(elapsed/1000)}s). Triggering timeout penalty...`);
                                 try {
                                     const res = await fetch(`${API_BASE}/api/arena/handle-timeout`, {
                                         method: 'POST',
@@ -315,7 +362,23 @@ async function main() {
         } catch (err) {
             console.error("[BOT] Loop Error:", err.message);
         }
-        await sleep(10000); // Check every 10s
+        
+        if (currentFightId) {
+            lastActivity = Date.now();
+        } else {
+            // Check if we should self-destruct (idle)
+            const idleTime = Date.now() - lastActivity;
+            if (idleTime > IDLE_TIMEOUT_MS) {
+                console.log(`[BOT] 💤 Idle for ${Math.round(idleTime/1000)}s. Going to sleep...`);
+                process.exit(0);
+            }
+        }
+
+        // Fast polling (1s) if in a fight, otherwise slower (5s)
+        const pollTime = currentFightId ? 1000 : 5000;
+        await sleep(pollTime);
+        
+        if (Math.random() > 0.98) console.log(`[BOT] HEARTBEAT: Agent Matrix is active. Current Fight: ${currentFightId || 'None'}`);
     }
 }
 

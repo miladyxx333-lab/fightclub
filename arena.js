@@ -36,6 +36,34 @@ class ArenaLobby {
         this.loadFights();
         this.subscribeToFights();
         this.startExpiryChecker();
+        this.triggerBotPulse();
+    }
+
+    async triggerBotPulse(manual = false) {
+        try {
+            if (manual) {
+                const btn = document.getElementById('summon-bot-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Summoning...';
+                }
+            }
+            console.log(`[ARENA] Bot pulse triggered (manual: ${manual})`);
+            const res = await fetch('/api/arena/bot-pulse');
+            const data = await res.json();
+            
+            if (manual) {
+                const btn = document.getElementById('summon-bot-btn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🤖 CHALLENGE BOT';
+                }
+                this.showToast('Agent Matrix is ready for combat!', 'success');
+                this.loadFights(); // Refresh list immediately
+            }
+        } catch (e) {
+            console.warn('Bot pulse failed:', e);
+        }
     }
 
     cacheDOM() {
@@ -111,6 +139,11 @@ class ArenaLobby {
             this.allFighters.sort(() => 0.5 - Math.random());
             this.fighterPage = 1;
             this.renderFighterGrid();
+        });
+
+        // Summon Bot button
+        document.getElementById('summon-bot-btn')?.addEventListener('click', () => {
+            this.triggerBotPulse(true);
         });
 
         // Filter buttons
@@ -232,15 +265,26 @@ class ArenaLobby {
 
         if (filtered.length === 0) {
             this.fightsContainer.innerHTML = `
-                <div class="empty-lobby">
+                <div class="empty-lobby" style="animation: fadeIn 0.5s ease; text-align: center;">
                     <span class="empty-icon">⚔️</span>
-                    <p>No fights yet. Be the first to create one!</p>
+                    <p>No fights yet. Be the first to create one! <br>or push the blue button to fight a bot.</p>
+                    <button class="summon-bot-btn" onclick="arenaLobby.triggerBotPulse(true)" style="margin-top: 20px;">
+                        🤖 CHALLENGE BOT
+                    </button>
                 </div>
             `;
             return;
         }
 
-        this.fightsContainer.innerHTML = filtered.map(fight => this.renderFightCard(fight)).join('');
+        // Clear and animate in
+        this.fightsContainer.innerHTML = '';
+        filtered.forEach((fight, index) => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = this.renderFightCard(fight);
+            const card = tempDiv.firstElementChild;
+            card.style.animationDelay = `${index * 0.05}s`;
+            this.fightsContainer.appendChild(card);
+        });
 
         // Bind join buttons
         this.fightsContainer.querySelectorAll('.join-fight-btn').forEach(btn => {
